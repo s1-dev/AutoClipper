@@ -1,0 +1,8 @@
+# Ignore files from idea dir
+.idea/
+
+# Ignore files from recording pycache 
+src/recording/__pycache__
+
+# Ignore files from workflows pycache
+src/workflows/__pycache__
