@@ -6,14 +6,15 @@ def __pickScene(client):
     sceneName = input("Scene to set: ")
 
     try:
-        client.setScene(sceneName)
+        # TODO just return config, but put check to ensure it's correct
+        #client.setScene(sceneName)
         return sceneName
     except Exception as e:
         print(f"Exception: {e}")
         return None
 
 def __listScenes(sceneList):
-    print("Available scenes: ")
+    print(f"{TITLE_LINE}Available scenes{TITLE_LINE}")
     for scene in sceneList:
         print(f"scene name: {scene['sceneName']}")
 
@@ -30,14 +31,15 @@ def __pickSource(client, sceneName):
         exit()
 
     try:
-        client.setSource(sceneName, sceneItemId)
+        # TODO just return config, but put check to ensure it's correct
+        #client.setSource(sceneName, sceneItemId)
         return (sourceName, sceneItemId)
     except Exception as e:
-        print(f"Exception: {e}")
+        print(f"Exception: {e}") 
         return None
 
 def __listSources(sourceList):
-    print("Available sources: ")
+    print(f"{TITLE_LINE}Available sources{TITLE_LINE}")
     for source in sourceList:
         print(f"source name: {source['sourceName']}")
 
