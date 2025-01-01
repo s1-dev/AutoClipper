@@ -1,0 +1,20 @@
+# Ignore files from idea dir
+.idea/
+
+# Ignore files from structures pycache
+src/structures/__pycache__
+
+# Ignore files from recording pycache 
+src/recording/__pycache__
+
+# Ignore files from workflows pycache
+src/workflows/__pycache__
+
+# Ignore files from content targeting pycache 
+src/contentTargeting/__pycache__
+
+# Ignore files from post clip handling pycache
+src/postClipHandling/__pycache__
+
+# Ignore stored clip configs
+clipConfigs
