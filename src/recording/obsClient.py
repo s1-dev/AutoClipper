@@ -20,6 +20,13 @@ class ObsClient:
 
         self.__client.get_version() # Verify connection
 
+    def connectionInfoToDict(self):
+        return {
+                'serverAddress': self.serverAddress,
+                'serverPort': self.serverPort,
+                'serverPassword': self.serverPassword,
+            }
+
     def getSceneList(self):
         return self.__client.get_scene_list().scenes
     
@@ -39,3 +46,4 @@ class ObsClient:
             item_id = sceneItemId,
             enabled = True,
         )
+        

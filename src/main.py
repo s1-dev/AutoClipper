@@ -1,4 +1,5 @@
 from workflows.workflowFactory import WorkflowFactory
+from exceptions.fatalError import FatalError
 
 # Going to make this CLI tool to start... then make GUI
 
@@ -12,8 +13,12 @@ def printOptions():
 def handleOption(workflowFactory, option):
     if option == "1":
         workflow = workflowFactory.createSetupWorkflow()
-        workflow.start()
-        print("TODO")
+
+        try:
+            workflow.start()
+        except FatalError as e:
+            print(f"Fatal error caught: {e}")
+
     elif option == "2":
         print("TODO")
     else:

@@ -1,6 +1,13 @@
+from exceptions.fatalError import FatalError
+from AutoClipper.src.structures.clipConfig import ClipConfig
 from recording.obsClientCreation import launchObsSetupWarning, retrieveObsClient
 from recording.obsClientSetup import setObsScene, setObsSource
-from contentTargeting.seleniumSetup import launchSeleniumSetupWarning, getSeleniumScript
+from contentTargeting.seleniumSetup import launchSeleniumSetupWarning, getSeleniumCommand
+from recording.conventionalRecordingSetup import buildConventionalRecordingConfig
+from postClipHandling.videoSavingSetup import buildClipSavingConfig
+
+import os
+import json
 
 # Maybe make workflow as an object and hold each subworkflow config as properties
 
@@ -10,7 +17,7 @@ class SetupWorkflow():
 
     def __init__(self):
         self.obsClient = None
-        self.mutableConfig = None
+        self.mutableClipConfig = ClipConfig()
 
     def start(self):
         self.createObsClient()
@@ -20,31 +27,33 @@ class SetupWorkflow():
 
         obsClient = retrieveObsClient()
         if obsClient == None:
-            print("Unable to connect to OBS web socket. Exiting...")
-            exit() # TODO Emit some sort of fatal error and return to menu. For now just exit program 
+            raise FatalError("Unable to connect to OBS web socket. Exiting workflow...")
         self.obsClient = obsClient
 
-        # TODO Update config
+        self.mutableClipConfig.setObsServerConnectionConfig(obsClient.connectionInfoToDict())
 
         self.setupObsClient()
 
     def setupObsClient(self):
         sceneName = setObsScene(self.obsClient)
         if sceneName == None:
-            print("TODO")
-            exit()
+            raise FatalError(f"Unable to set OBS scene. Exiting workflow...")
 
         setSourceResult = setObsSource(self.obsClient, sceneName)
         if setSourceResult == None:
-            print("TODO")
-            exit()
+            raise FatalError(f"Unable to set OBS source for the {sceneName} scene. Exiting workflow...")
         
         (sourceName, sourceItemId) = setSourceResult
 
-        # TODO Update config
+        self.mutableClipConfig.setObsSceneConfig(
+            {
+                'sceneName': sceneName,
+                'sourceName': sourceName,
+                'sourceItemId': sourceItemId,
+            }
+        )
 
         self.getTargetContent()
-
         # Ask user which scene to use
         # Ask user which source to use 
         # Add scene creation/cutomization? Issues with picking certain settings so probably implement later
@@ -53,8 +62,14 @@ class SetupWorkflow():
     def getTargetContent(self):
         launchSeleniumSetupWarning()
 
-        seleniumScriptPath = getSeleniumScript()
+        seleniumCommand = getSeleniumCommand() # Do sanitization here?
 
+        if seleniumCommand == None:
+            raise FatalError("Unable to craft selenium command. Exiting workflow...")
+        
+        self.mutableClipConfig.setSeleniumCommand(seleniumCommand.toDict())
+
+        self.recordingSetup()
         # Get target URL to launch and watch
         # Allow user to implement actions to take on the website
         # Ex - CLick this button, maxmize screen, etc.
@@ -63,22 +78,65 @@ class SetupWorkflow():
         # Pass content target to recording setup
 
     def recordingSetup(self):
-        print("TODO")
+        recordingConfig = None
+        recordingConfig = buildConventionalRecordingConfig()
+
+        if recordingConfig == None:
+            raise FatalError("TODO")
+        
+        self.mutableClipConfig.setConventionalRecordingConfig(recordingConfig.toDict())
+        
+        self.savingSetup()
         # Ask user how we should create clips 
         # Timed? Certain intervals 
         # Add AI to examine video and cut at certain points. Probably implement with manual time boxxing for now 
         # Pass to youtube setup
 
     def savingSetup(self):
-        print("TODO")
+        clipSavingConfig = buildClipSavingConfig()
+
+
+        # TODO setup youtube uploading
+
+        self.mutableClipConfig.setClipSavingConfig(clipSavingConfig.toDict())
+
+        self.setupConfirmation()
         # Ask user if they'd like to automatically upload clips to youtube 
         # if not, just ensure the video is saved locally to a certain PATH
         # else, get youtube auth token, probably? 
         
     def setupConfirmation(self):
-        print("TODO")
+        clipConfigDict = self.mutableClipConfig.toDict()
+        print("Overview of clip configuration: ")
+        print(clipConfigDict)
+        isToReconfig = input("Would you like to reconfigure? (y|n) ")
+        isToReconfig = isToReconfig.lower() == "y"
+
+        if isToReconfig:
+            self.__restartSetup()
+        else:
+            self.__saveSetup()
         # Show overview of user setup? (Maybe optional button)
         # Ask what the user wants to do with setup:
         #   - Just save, run a test (have sample 30 second video), or start automation workflow
         # Return to main menu? 
+
+    def __restartSetup(self):
+        self.__init__()
+        self.start()
+    
+    def __saveSetup(self):
+        # TODO check if config dir is there
+        clipConfigDir = "clipConfigs"
+        if not os.path.exists(clipConfigDir):
+            os.makedirs(clipConfigDir)
+
+        clipConfigName = input("Enter clip config file name: (note .json will be appended)")
+        clipConfigName += ".json"
+
+        data = self.mutableClipConfig.toDict()
+
+        with open(clipConfigName, "w") as jsonConfigFile:
+            json.dump(data, jsonConfigFile, indent=4)
+        
         
