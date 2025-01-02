@@ -1,5 +1,4 @@
 from datetime import datetime
-from contentTargeting.seleniumCommand import SeleniumCommand
 
 class ClipConfig:
 
