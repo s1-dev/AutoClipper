@@ -5,33 +5,46 @@ from exceptions.fatalError import FatalError
 
 TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
 
+workflowFactory = WorkflowFactory()
+
 def printOptions():
     print(f"{TITLE_LINE}Options{TITLE_LINE}")
     print("1. Setup a clipping config")
     print("2. List clipping configs")
 
-def handleOption(workflowFactory, option):
+def handleOption(option):
     if option == "1":
-        workflow = workflowFactory.createSetupWorkflow()
-
-        try:
-            workflow.start()
-        except FatalError as e:
-            print(f"Fatal error caught: {e}")
-
+        runSetupWorkflow()
     elif option == "2":
         print("TODO")
     else:
         print("Unknown option...")
+    
+    
+def runSetupWorkflow():
+    workflow = workflowFactory.createSetupWorkflow()
+    try:
+        workflowCompletedSucessfully = workflow.start()
+
+        if workflowCompletedSucessfully:
+            runWorkflow = input("Would you like to begin running this clipping config? (y|n) ")
+            runWorkflow = runWorkflow.lower() == "y"
+            if runWorkflow:
+                runClippingWorkflow(workflow.clipConfigFileName)
+    except FatalError as e:
+        print(f"Fatal error caught: {e}")
+
+def runClippingWorkflow(clipConfigFileName):
+    workflowFactory.createRunWorkflow()
+
 
 def main():
-    workflowFactory = WorkflowFactory()
     print(f"{TITLE_LINE}Welcome to AutoClipper{TITLE_LINE}")
     print("This is the preliminary CLI version. GUI to come")
 
     printOptions()
     option = input("Option: ")
-    handleOption(workflowFactory, option)
+    handleOption(option)
 
 
 if __name__ == "__main__":

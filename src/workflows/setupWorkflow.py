@@ -1,13 +1,11 @@
 from exceptions.fatalError import FatalError
-from AutoClipper.src.structures.clipConfig import ClipConfig
+from clipConfiguration.clipConfig import ClipConfig
 from recording.obsClientCreation import launchObsSetupWarning, retrieveObsClient
 from recording.obsClientSetup import setObsScene, setObsSource
 from contentTargeting.seleniumSetup import launchSeleniumSetupWarning, getSeleniumCommand
 from recording.conventionalRecordingSetup import buildConventionalRecordingConfig
 from postClipHandling.videoSavingSetup import buildClipSavingConfig
-
-import os
-import json
+from utils.fileUtils import FileUtils
 
 # Maybe make workflow as an object and hold each subworkflow config as properties
 
@@ -18,9 +16,12 @@ class SetupWorkflow():
     def __init__(self):
         self.obsClient = None
         self.mutableClipConfig = ClipConfig()
+        self.finished = False
+        self.clipConfigFileName = ""
 
     def start(self):
         self.createObsClient()
+        return self.finished
 
     def createObsClient(self):
         launchObsSetupWarning()
@@ -126,17 +127,22 @@ class SetupWorkflow():
         self.start()
     
     def __saveSetup(self):
-        # TODO check if config dir is there
         clipConfigDir = "clipConfigs"
-        if not os.path.exists(clipConfigDir):
-            os.makedirs(clipConfigDir)
+        if not FileUtils.doesDirExist(clipConfigDir):
+            FileUtils.createDir(clipConfigDir)
 
         clipConfigName = input("Enter clip config file name: (note .json will be appended)")
-        clipConfigName += ".json"
 
-        data = self.mutableClipConfig.toDict()
+        if not clipConfigName.endswith(".json"):
+            clipConfigName += ".json"
 
-        with open(clipConfigName, "w") as jsonConfigFile:
-            json.dump(data, jsonConfigFile, indent=4)
-        
+        FileUtils.dictToJson(
+            dictData=self.mutableClipConfig.toDict(),
+            outputPath=clipConfigName,
+        )
+        self.__completeWorkflow(clipConfigName)
+
+    def __completeWorkflow(self, clipConfigFileName):
+        self.finished = True
+        self.clipConfigFileName = clipConfigFileName
         
