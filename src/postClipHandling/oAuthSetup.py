@@ -50,7 +50,7 @@ def _verifyConfig(pathToOAuthConfig) -> bool:
         if _isRefreshNeeded(oAuthConfig):
             print("OAUTH refresh is needed")
             if _isRefreshPossible(oAuthConfig):
-                return _attemptRefreshCredentials(oAuthCredentials, "testOAuthConfig.json")
+                return _attemptRefreshCredentials(oAuthCredentials, pathToOAuthConfig)
             else:
                 print("OAUTH refresh not possible")
                 return False
