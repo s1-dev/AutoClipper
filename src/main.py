@@ -68,7 +68,12 @@ def listClippingConfigs():
         print(f"Clipconfig: {file}")
 
 def verifyOAuth():
-    verifyOAuthIsSetup()
+    pathToOAuthConfig = getAndValidateUserInput(
+        inputText="Please enter in the path to your OAUTH config: ",
+        errorText="Given input was not a valid json file.",
+        conditional=lambda userInput: FileUtils.isValidJsonFile(userInput),
+    )
+    verifyOAuthIsSetup(pathToOAuthConfig)
 
 def main():
     print(f"{TITLE_LINE}Welcome to AutoClipper{TITLE_LINE}")

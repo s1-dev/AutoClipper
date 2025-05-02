@@ -7,6 +7,7 @@ import time
 import json
 
 from utils.dateUtils import convertUtcToEpoch, getCurrentEpoch
+from utils.fileUtils import FileUtils
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -15,8 +16,6 @@ from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.client import Credentials
 from oauth2client.tools import argparser, run_flow
-
-OAUTH_CONFIG_PATH = "testOAuthConfig.json"
 
 CLIENT_SECRETS_FILE = "client_secrets.json"
 
@@ -40,8 +39,10 @@ https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
 """ % os.path.abspath(os.path.join(os.path.dirname(__file__),
                                    CLIENT_SECRETS_FILE))
 
-def _verifyConfig() -> bool:
-    oAuthCredentials = _attemptToLoadConfig()
+def _verifyConfig(pathToOAuthConfig) -> bool:
+    if not FileUtils.isValidFile(pathToOAuthConfig):
+        return False
+    oAuthCredentials = _attemptToLoadConfig(pathToOAuthConfig)
     if oAuthCredentials != None:
         oAuthConfig = json.loads(oAuthCredentials.to_json())
         # Check if refresh is needed 
@@ -58,8 +59,8 @@ def _verifyConfig() -> bool:
         print("OAUTH credentials are null")
         return False
 
-def _attemptToLoadConfig() -> Credentials :
-    storage = Storage("testOAuthConfig.json")
+def _attemptToLoadConfig(pathToOAuthConfig) -> Credentials :
+    storage = Storage(pathToOAuthConfig)
     credentials = storage.get()
 
     if credentials is None or credentials.invalid:
@@ -86,6 +87,7 @@ def _attemptRefreshCredentials(oAuthCredentials, pathToConfig) -> bool:
         oAuthCredentials.refresh(http)
         with open(pathToConfig, "w") as f:
             f.write(oAuthCredentials.to_json())
+        print("Refresh succeeded.")
         return True
     except Exception as e:
         print(f"Refresh failed: {e}")
@@ -108,16 +110,15 @@ def _runAuthenticationFlow(configOutputPath):
 
 # Public functions
 
-def isOAuthSetup():
-    return _verifyConfig()
+def isOAuthSetup(pathToOAuthConfig: str):
+    return _verifyConfig(pathToOAuthConfig)
 
-def verifyOAuthIsSetup():
-    isConfigValid = _verifyConfig()
+def verifyOAuthIsSetup(pathToOAuthConfig: str):
+    isConfigValid = _verifyConfig(pathToOAuthConfig)
 
     if not isConfigValid:
         decision = input("Would you like to run an OAUTH setup? (y/Y) ")
         if decision.lower() == "y":
-            _runAuthenticationFlow(OAUTH_CONFIG_PATH) # TODO allow them to specify?
-           # _runSetupFlow()
+            _runAuthenticationFlow(pathToOAuthConfig)
     else:
         print("OAuth config is valid!")
