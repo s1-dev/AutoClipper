@@ -1,15 +1,17 @@
 from exceptions.fatalError import FatalError
 from clipConfiguration.clipConfig import ClipConfig
-from recording.obsClientCreation import launchObsSetupWarning, retrieveObsClient
+from recording.obsClientCreation import retrieveObsClient
 from recording.obsClientSetup import setObsScene, setObsSource
 from contentTargeting.seleniumSetup import launchSeleniumSetupWarning, getSeleniumCommand
-from recording.conventionalRecordingSetup import buildConventionalRecordingConfig
+from recording.recordingConfigSetup import buildRecordingConfig
 from postClipHandling.videoSavingSetup import buildClipSavingConfig
 from utils.fileUtils import FileUtils
 
 # Maybe make workflow as an object and hold each subworkflow config as properties
 
 # Transition functions?
+
+TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
 
 class SetupWorkflow():
 
@@ -24,7 +26,7 @@ class SetupWorkflow():
         return self.finished
 
     def createObsClient(self):
-        launchObsSetupWarning()
+        #launchObsSetupWarning()
 
         obsClient = retrieveObsClient()
         if obsClient == None:
@@ -33,9 +35,10 @@ class SetupWorkflow():
 
         self.mutableClipConfig.setObsServerConnectionConfig(obsClient.connectionInfoToDict())
 
-        self.setupObsClient()
+        self.obsConfigSetup()
 
-    def setupObsClient(self):
+    def obsConfigSetup(self):
+        # TODO refactor to a buildObsSceneConfig and create an ObsSceneConfig class
         sceneName = setObsScene(self.obsClient)
         if sceneName == None:
             raise FatalError(f"Unable to set OBS scene. Exiting workflow...")
@@ -73,19 +76,15 @@ class SetupWorkflow():
         self.recordingSetup()
         # Get target URL to launch and watch
         # Allow user to implement actions to take on the website
-        # Ex - CLick this button, maxmize screen, etc.
+        # Ex - CLick this button, maxmize screen, etc. 
         # Have a subworkflow to do a test run for the user 
         # Run test? 
         # Pass content target to recording setup
 
     def recordingSetup(self):
-        recordingConfig = None
-        recordingConfig = buildConventionalRecordingConfig()
+        recordingConfig = buildRecordingConfig()
 
-        if recordingConfig == None:
-            raise FatalError("TODO")
-        
-        self.mutableClipConfig.setConventionalRecordingConfig(recordingConfig.toDict())
+        self.mutableClipConfig.setRecordingConfig(recordingConfig.toDict())
         
         self.savingSetup()
         # Ask user how we should create clips 
@@ -95,8 +94,6 @@ class SetupWorkflow():
 
     def savingSetup(self):
         clipSavingConfig = buildClipSavingConfig()
-
-
         # TODO setup youtube uploading
 
         self.mutableClipConfig.setClipSavingConfig(clipSavingConfig.toDict())
@@ -108,7 +105,7 @@ class SetupWorkflow():
         
     def setupConfirmation(self):
         clipConfigDict = self.mutableClipConfig.toDict()
-        print("Overview of clip configuration: ")
+        print(f"{TITLE_LINE}Overview of clip configuration{TITLE_LINE}")
         print(clipConfigDict)
         isToReconfig = input("Would you like to reconfigure? (y|n) ")
         isToReconfig = isToReconfig.lower() == "y"
@@ -136,9 +133,11 @@ class SetupWorkflow():
         if not clipConfigName.endswith(".json"):
             clipConfigName += ".json"
 
+        outputPath = clipConfigDir + "/" + clipConfigName
+
         FileUtils.dictToJson(
             dictData=self.mutableClipConfig.toDict(),
-            outputPath=clipConfigName,
+            outputPath=outputPath,
         )
         self.__completeWorkflow(clipConfigName)
 

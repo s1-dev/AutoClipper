@@ -1,4 +1,6 @@
 from contentTargeting.seleniumCommand import SeleniumCommand
+from utils.inputOutputUtils import getAndValidateUserInput
+from utils.fileUtils import FileUtils
 
 # Discuss need for chrome driver
 # Have preset scripts for youtube videos, twtich vods, etc. 
@@ -7,13 +9,18 @@ from contentTargeting.seleniumCommand import SeleniumCommand
 # For instance, user wants to go to a site and click a button via ID
 TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
 options = ['YouTube', 'Twitch', 'Custom script']
+VALID_OPTIONS = ("1", "2", "3")
 
-YOUTUBE_SCRIPT_PATH = "scripts/launchYoutubeVideo.py"
-TWITCH_SCRIPT_PATH = "scripts/launchTwitchVideo.py"
+YOUTUBE_SCRIPT_PATH = "seleniumScripts/launchYoutubeVideo.py"
+TWITCH_SCRIPT_PATH = "seleniumScripts/launchTwitchVideo.py"
 
 def __retrieveSelniumScriptChoice():
     __printSeleniumSetupOptions()
-    option = input("Option: ")
+    option = getAndValidateUserInput(
+        inputText="Input an option: ",
+        errorText=f"Must be one of the valid options: {VALID_OPTIONS}",
+        conditional=lambda userOption: userOption in VALID_OPTIONS,
+    )
 
     return __handleOption(option)
 
@@ -48,8 +55,11 @@ def __buildSeleniumCommand(pathToScript):
     return seleniumCommand
 
 def __getCustomScriptPath():
-    customScriptPath = input("Input absolute path of custom selenium script: ")
-    # TODO sanitize 
+    customScriptPath = getAndValidateUserInput(
+        inputText="Input absolute path of custom selenium script: ",
+        errorText="Please input a valid file.",
+        conditional=lambda file: FileUtils.isValidFile(file),
+    )
     return customScriptPath
 
 # Public functions 

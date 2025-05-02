@@ -1,9 +1,13 @@
-TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
+from utils.inputOutputUtils import getAndValidateUserInput
 
 def __pickScene(client):
     sceneList = client.getSceneList()
     __listScenes(sceneList)
-    sceneName = input("Scene to set: ")
+    sceneName = getAndValidateUserInput(
+        inputText="Input the name of the scene you'd like to set (case sensitive): ",
+        errorText="Invalid scene name.",
+        conditional=lambda userInput: userInput in sceneList,
+    )
 
     try:
         # TODO just return config, but put check to ensure it's correct
@@ -14,15 +18,19 @@ def __pickScene(client):
         return None
 
 def __listScenes(sceneList):
-    print(f"{TITLE_LINE}Available scenes{TITLE_LINE}")
-    for scene in sceneList:
-        print(f"scene name: {scene['sceneName']}")
+    print("Available scenes: ")
+    for index, scene in enumerate(sceneList):
+        print(f"{index+1}: {scene['sceneName']}")
 
 def __pickSource(client, sceneName):
     sourceList = client.getSourceList(sceneName)
     __listSources(sourceList)
 
-    sourceName = input("Source name to set: ")
+    sourceName = getAndValidateUserInput(
+        inputText="Input the name of the source you'd like to set (case sensitive): ",
+        errorText="Invalid source name.",
+        conditional=lambda userInput: userInput in sourceList,
+    )
 
     sceneItemId = __getSceneItemId(sourceList, sourceName)
 
@@ -39,9 +47,9 @@ def __pickSource(client, sceneName):
         return None
 
 def __listSources(sourceList):
-    print(f"{TITLE_LINE}Available sources{TITLE_LINE}")
-    for source in sourceList:
-        print(f"source name: {source['sourceName']}")
+    print("Available sources: ")
+    for index, source in enumerate(sourceList):
+        print(f"{index+1}: {source['sourceName']}")
 
 def __getSceneItemId(sourceList, sourceName):
     for item in sourceList:
