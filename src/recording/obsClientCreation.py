@@ -53,8 +53,8 @@ def __connectToObs():
 
 # Public functions
 
-def launchObsSetupWarning():
-    print("TODO")
+#def launchObsSetupWarning():
+#    print("TODO")
 
 def retrieveObsClient():
     return configureObsServerConfig()
