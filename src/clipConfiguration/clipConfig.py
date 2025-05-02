@@ -1,5 +1,5 @@
 from datetime import datetime
-from contentTargeting.seleniumCommand import SeleniumCommand
+import json
 
 class ClipConfig:
 
@@ -8,8 +8,19 @@ class ClipConfig:
         self.__obsServerConnectionConfig = {}
         self.__obsSceneConfig = {}
         self.__seleniumCommand = {}
-        self.__conventionalRecordingConfig = {}
+        self.__recordingConfig = {}
         self.__clipSavingConfig = {}
+
+    def loadFromJson(self, clipConfigFileName):
+        with open(f"clipConfigs/{clipConfigFileName}", "r") as jsonFile:
+            jsonData = json.load(jsonFile)
+
+        self.__creationDate = jsonData['creationDate']
+        self.__obsServerConnectionConfig = jsonData['obsServerConnectionConfig']
+        self.__obsSceneConfig = jsonData['obsSceneConfig']
+        self.__seleniumCommand = jsonData['seleniumCommand']
+        self.__recordingConfig = jsonData['recordingConfig']
+        self.__clipSavingConfig = jsonData['clipSavingConfig']
 
     def getCreationDate(self):
         return self.__creationDate
@@ -32,11 +43,11 @@ class ClipConfig:
     def getSeleniumCommand(self):
         return self.__seleniumCommand
     
-    def setConventionalRecordingConfig(self, conventionalRecordingConfig):
-        self.__conventionalRecordingConfig = conventionalRecordingConfig
+    def setRecordingConfig(self, recordingConfig):
+        self.__recordingConfig = recordingConfig
     
-    def getConventionalRecordingConfig(self):
-        return self.__conventionalRecordingConfig
+    def getRecordingConfig(self):
+        return self.__recordingConfig
     
     def setClipSavingConfig(self, clipSavingConfig):
         self.__clipSavingConfig = clipSavingConfig
@@ -50,6 +61,6 @@ class ClipConfig:
             'obsServerConnectionConfig': self.__obsServerConnectionConfig,
             'obsSceneConfig': self.__obsSceneConfig,
             'seleniumCommand': self.__seleniumCommand,
-            'conventionalRecordingConfig': self.__conventionalRecordingConfig,
+            'recordingConfig': self.__recordingConfig,
             'clipSavingConfig': self.__clipSavingConfig,
         }
