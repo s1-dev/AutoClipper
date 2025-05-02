@@ -1,29 +1,32 @@
 from exceptions.fatalError import FatalError
-from AutoClipper.src.structures.clipConfig import ClipConfig
-from recording.obsClientCreation import launchObsSetupWarning, retrieveObsClient
+from clipConfiguration.clipConfig import ClipConfig
+from recording.obsClientCreation import retrieveObsClient
 from recording.obsClientSetup import setObsScene, setObsSource
 from contentTargeting.seleniumSetup import launchSeleniumSetupWarning, getSeleniumCommand
-from recording.conventionalRecordingSetup import buildConventionalRecordingConfig
+from recording.recordingConfigSetup import buildRecordingConfig
 from postClipHandling.videoSavingSetup import buildClipSavingConfig
-
-import os
-import json
+from utils.fileUtils import FileUtils
 
 # Maybe make workflow as an object and hold each subworkflow config as properties
 
 # Transition functions?
+
+TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
 
 class SetupWorkflow():
 
     def __init__(self):
         self.obsClient = None
         self.mutableClipConfig = ClipConfig()
+        self.finished = False
+        self.clipConfigFileName = ""
 
     def start(self):
         self.createObsClient()
+        return self.finished
 
     def createObsClient(self):
-        launchObsSetupWarning()
+        #launchObsSetupWarning()
 
         obsClient = retrieveObsClient()
         if obsClient == None:
@@ -32,9 +35,10 @@ class SetupWorkflow():
 
         self.mutableClipConfig.setObsServerConnectionConfig(obsClient.connectionInfoToDict())
 
-        self.setupObsClient()
+        self.obsConfigSetup()
 
-    def setupObsClient(self):
+    def obsConfigSetup(self):
+        # TODO refactor to a buildObsSceneConfig and create an ObsSceneConfig class
         sceneName = setObsScene(self.obsClient)
         if sceneName == None:
             raise FatalError(f"Unable to set OBS scene. Exiting workflow...")
@@ -72,19 +76,15 @@ class SetupWorkflow():
         self.recordingSetup()
         # Get target URL to launch and watch
         # Allow user to implement actions to take on the website
-        # Ex - CLick this button, maxmize screen, etc.
+        # Ex - CLick this button, maxmize screen, etc. 
         # Have a subworkflow to do a test run for the user 
         # Run test? 
         # Pass content target to recording setup
 
     def recordingSetup(self):
-        recordingConfig = None
-        recordingConfig = buildConventionalRecordingConfig()
+        recordingConfig = buildRecordingConfig()
 
-        if recordingConfig == None:
-            raise FatalError("TODO")
-        
-        self.mutableClipConfig.setConventionalRecordingConfig(recordingConfig.toDict())
+        self.mutableClipConfig.setRecordingConfig(recordingConfig.toDict())
         
         self.savingSetup()
         # Ask user how we should create clips 
@@ -94,8 +94,6 @@ class SetupWorkflow():
 
     def savingSetup(self):
         clipSavingConfig = buildClipSavingConfig()
-
-
         # TODO setup youtube uploading
 
         self.mutableClipConfig.setClipSavingConfig(clipSavingConfig.toDict())
@@ -107,7 +105,7 @@ class SetupWorkflow():
         
     def setupConfirmation(self):
         clipConfigDict = self.mutableClipConfig.toDict()
-        print("Overview of clip configuration: ")
+        print(f"{TITLE_LINE}Overview of clip configuration{TITLE_LINE}")
         print(clipConfigDict)
         isToReconfig = input("Would you like to reconfigure? (y|n) ")
         isToReconfig = isToReconfig.lower() == "y"
@@ -126,17 +124,24 @@ class SetupWorkflow():
         self.start()
     
     def __saveSetup(self):
-        # TODO check if config dir is there
         clipConfigDir = "clipConfigs"
-        if not os.path.exists(clipConfigDir):
-            os.makedirs(clipConfigDir)
+        if not FileUtils.doesDirExist(clipConfigDir):
+            FileUtils.createDir(clipConfigDir)
 
         clipConfigName = input("Enter clip config file name: (note .json will be appended)")
-        clipConfigName += ".json"
 
-        data = self.mutableClipConfig.toDict()
+        if not clipConfigName.endswith(".json"):
+            clipConfigName += ".json"
 
-        with open(clipConfigName, "w") as jsonConfigFile:
-            json.dump(data, jsonConfigFile, indent=4)
-        
+        outputPath = clipConfigDir + "/" + clipConfigName
+
+        FileUtils.dictToJson(
+            dictData=self.mutableClipConfig.toDict(),
+            outputPath=outputPath,
+        )
+        self.__completeWorkflow(clipConfigName)
+
+    def __completeWorkflow(self, clipConfigFileName):
+        self.finished = True
+        self.clipConfigFileName = clipConfigFileName
         
