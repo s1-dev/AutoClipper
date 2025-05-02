@@ -8,7 +8,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 
 import time
 
-DRIVER_PATH = r"C:\code\downloads\chromedriver-win64\chromedriver.exe"  
+DRIVER_PATH = r"path/to/driver"  
 DEFAULT_WAIT_TIME = 10
 
 def setupWebDriver():
@@ -36,7 +36,7 @@ def launchYoutubeVideo(driver, videoUrl):
     print("INITIALIZED", flush=True)
 
 def main():
-    url = r"https://www.youtube.com/watch?v=U__aholYpL4"
+    url = r""
     driver = setupWebDriver()
     launchYoutubeVideo(driver, url)
     
