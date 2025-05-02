@@ -116,7 +116,7 @@ def uploadYoutubeVideo(filePath, clipCounter, youtubeConfig) -> bool:
         print("Given file path to upload is not a valid file.")
         return False
 
-    youtubeService = _getAuthenticatedService("testOAuthConfig.json")
+    youtubeService = _getAuthenticatedService(youtubeConfig["pathToOAuthConfig"])
 
     videoArgs = {
         'file': filePath,

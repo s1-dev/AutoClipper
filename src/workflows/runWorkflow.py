@@ -235,13 +235,16 @@ class RunWorkflow:
 
         keepVideosAfterUpload = bool(clipSavingConfig["keepVideosAfterUpload"])
         savingPath = str(clipSavingConfig["savingPath"])
+        externalPlatformConfig = clipSavingConfig["externalPlatformConfig"]
 
-        if not isOAuthSetup():
+        pathToOAuthConfig = str(externalPlatformConfig["pathToOAuthConfig"])
+
+        if not isOAuthSetup(pathToOAuthConfig):
             raise Exception("OAUTH config is not setup")
         else:
             print("OAUTH is configured.")
         
-        result = await asyncio.to_thread(uploadYoutubeVideo, outputPath, clipCounter, clipSavingConfig["externalPlatformConfig"])
+        result = await asyncio.to_thread(uploadYoutubeVideo, outputPath, clipCounter, externalPlatformConfig)
 
         if not keepVideosAfterUpload:
             FileUtils.deleteFile(outputPath) # This returns a bool. Should we handle? 
