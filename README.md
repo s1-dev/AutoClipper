@@ -29,6 +29,9 @@ I think we could wrap the OBS client requests with try catch and retry 'n' times
 - Implement post recording commands. Or post detection/undetection commands
 - Is there a way to upload the video and have it marked if it's for kids or not? 
 - Refactor logging and generate a log file after every workflow. Dir holding log that displays overview of workflow and all logs generated during?
+- Create a tiktok uploader and have tiktok as an external platform
+- Once we get multiple platforms supported, multi-platform uploading per clip? 
+- We need to fix bug where files aren't being deleted properly in runWorkflow
 
 - Generating a title and description should be quite feasible: 
 1. Post recording, transcribe audio (OpenAI Whisper, Google Speech-to-Text)

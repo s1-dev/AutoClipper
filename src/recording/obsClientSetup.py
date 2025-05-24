@@ -1,4 +1,5 @@
 from utils.inputOutputUtils import getAndValidateUserInput
+from utils.constants import CLI
 
 def __pickScene(client):
     sceneList = client.getSceneList()
@@ -6,7 +7,7 @@ def __pickScene(client):
     sceneName = getAndValidateUserInput(
         inputText="Input the name of the scene you'd like to set (case sensitive): ",
         errorText="Invalid scene name.",
-        conditional=lambda userInput: userInput in sceneList,
+        conditional=lambda userInput: _findItemInDictList(userInput, sceneList, "sceneName") != None,
     )
 
     try:
@@ -29,15 +30,14 @@ def __pickSource(client, sceneName):
     sourceName = getAndValidateUserInput(
         inputText="Input the name of the source you'd like to set (case sensitive): ",
         errorText="Invalid source name.",
-        conditional=lambda userInput: userInput in sourceList,
+        conditional=lambda userInput: _findItemInDictList(userInput, sourceList, "sourceName") != None,
     )
 
     sceneItemId = __getSceneItemId(sourceList, sourceName)
 
     if sceneItemId == None:
-        print("TODO")
-        exit()
-
+        raise Exception("TODO")
+    
     try:
         # TODO just return config, but put check to ensure it's correct
         #client.setSource(sceneName, sceneItemId)
@@ -45,6 +45,13 @@ def __pickSource(client, sceneName):
     except Exception as e:
         print(f"Exception: {e}") 
         return None
+    
+def _findItemInDictList(userInput, list, key):
+    userInput = userInput.strip()
+    for scene in list:
+        if scene.get(key) == userInput:
+            return scene
+    return None
 
 def __listSources(sourceList):
     print("Available sources: ")
