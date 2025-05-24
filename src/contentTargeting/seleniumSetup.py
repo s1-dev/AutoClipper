@@ -1,13 +1,13 @@
 from contentTargeting.seleniumCommand import SeleniumCommand
 from utils.inputOutputUtils import getAndValidateUserInput
 from utils.fileUtils import FileUtils
+from utils.constants import CLI
 
 # Discuss need for chrome driver
 # Have preset scripts for youtube videos, twtich vods, etc. 
 # Allow for custom scripts to be passed in
 # Potentially add some sort of programmatic way to build a selenium script
 # For instance, user wants to go to a site and click a button via ID
-TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
 options = ['YouTube', 'Twitch', 'Custom script']
 VALID_OPTIONS = ("1", "2", "3")
 
@@ -25,7 +25,7 @@ def __retrieveSelniumScriptChoice():
     return __handleOption(option)
 
 def __printSeleniumSetupOptions():
-    print(f"{TITLE_LINE}Selenium Setup Options{TITLE_LINE}")
+    print(f"{CLI.TITLE_LINE}Selenium Setup Options{CLI.TITLE_LINE}")
     print("Please select which type script you'd like to use")
     print("Note: For the preset scripts, such as youtube, will simply take in a URL and play the video. See example usage")
 
@@ -33,7 +33,6 @@ def __printSeleniumSetupOptions():
         print(f"{idx+1}: {option}")
 
 def __handleOption(option):
-    # TODO refactor
     if option == "1":
         return __buildSeleniumCommand(YOUTUBE_SCRIPT_PATH)
     elif option == "2":
@@ -46,7 +45,6 @@ def __handleOption(option):
         return None
 
 def __buildSeleniumCommand(pathToScript):
-    # TODO
     seleniumCommand = SeleniumCommand(
         pathToScript = pathToScript,
         args = [],
@@ -65,7 +63,7 @@ def __getCustomScriptPath():
 # Public functions 
 
 def launchSeleniumSetupWarning():
-    print("TODO")
+    print("TODO - Show user warning about selenium usage")
 
 def getSeleniumCommand():
     return __retrieveSelniumScriptChoice()

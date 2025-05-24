@@ -122,3 +122,7 @@ def verifyOAuthIsSetup(pathToOAuthConfig: str):
             _runAuthenticationFlow(pathToOAuthConfig)
     else:
         print("OAuth config is valid!")
+
+def configureOAuth(outputPath: str):
+    _runAuthenticationFlow(outputPath)
+    return _verifyConfig(outputPath)

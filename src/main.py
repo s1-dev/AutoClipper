@@ -5,19 +5,19 @@ from workflows.workflowFactory import WorkflowFactory
 from exceptions.fatalError import FatalError
 from utils.inputOutputUtils import getAndValidateUserInput
 from utils.fileUtils import FileUtils
+from utils.constants import CLI
 
-from postClipHandling.oAuthSetup import verifyOAuthIsSetup
+from postClipHandling.oAuthSetup import verifyOAuthIsSetup, configureOAuth
 
 # Going to make this CLI tool to start... then make GUI
 
-TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
 
 CLIP_CONFIGS_PATH = "clipConfigs/"
 
 workflowFactory = WorkflowFactory()
 
 def printOptions():
-    print(f"{TITLE_LINE}Options{TITLE_LINE}")
+    print(f"{CLI.TITLE_LINE}Options{CLI.TITLE_LINE}")
     print("1. Setup a clipping config")
     print("2. Run a clipping config")
     print("3. List clipping configs")
@@ -37,7 +37,7 @@ def handleOption(option):
     elif option == "3":
         listClippingConfigs()
     elif option == "4":
-        verifyOAuth()
+        verifyOrSetupOAuth()
     else:
         print("Unknown option...")
 
@@ -63,9 +63,22 @@ def runClippingWorkflow(clipConfigFileName):
 def listClippingConfigs():
     onlyfiles = [f for f in listdir(CLIP_CONFIGS_PATH) if isfile(join(CLIP_CONFIGS_PATH, f))]
 
-    print(f"{TITLE_LINE}CLIP CONFIGS{TITLE_LINE}")
+    print(f"{CLI.TITLE_LINE}CLIP CONFIGS{CLI.TITLE_LINE}")
     for file in onlyfiles:
         print(f"Clipconfig: {file}")
+
+def verifyOrSetupOAuth():
+    print("Would you like to verify or setup/reconfigure OAUTH?")
+    userInput = getAndValidateUserInput(
+        inputText="Input (v)erify or (s)etup: ",
+        errorText="Please enter 'v' or 's'.",
+        conditional=lambda userInput: userInput == "v" or userInput == "s",
+    )
+
+    if userInput == "v":
+        verifyOAuth()
+    elif userInput == "s":
+        setupOAuth()
 
 def verifyOAuth():
     pathToOAuthConfig = getAndValidateUserInput(
@@ -75,8 +88,16 @@ def verifyOAuth():
     )
     verifyOAuthIsSetup(pathToOAuthConfig)
 
+def setupOAuth():
+    pathToOAuthConfig = getAndValidateUserInput(
+        inputText="Please enter in the output path of the OAuth config: ",
+        errorText="Output path must end if '.json'.",
+        conditional=lambda userInput: userInput.endswith(".json"),
+    )
+    configureOAuth(pathToOAuthConfig)
+
 def main():
-    print(f"{TITLE_LINE}Welcome to AutoClipper{TITLE_LINE}")
+    print(f"{CLI.TITLE_LINE}Welcome to AutoClipper{CLI.TITLE_LINE}")
     print("This is the preliminary CLI version. GUI to come")
 
     printOptions()

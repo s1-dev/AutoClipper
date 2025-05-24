@@ -1,8 +1,7 @@
 from postClipHandling.clipSavingConfig import ClipSavingConfig
 from utils.fileUtils import FileUtils
 from utils.inputOutputUtils import getAndValidateUserInput
-
-TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
+from utils.constants import AI, CLI
 
 YOUTUBE = "YOUTUBE"
 UPLOAD_PLATFORMS = [YOUTUBE]
@@ -14,7 +13,7 @@ MAX_YT_DESC_LEN = 5000
 MAX_YT_TAG_LEN = 500
 
 def __retrieveSavingConfig():
-    print(f"{TITLE_LINE}Post clip handling conifg{TITLE_LINE}")
+    print(f"{CLI.TITLE_LINE}Post clip handling conifg{CLI.TITLE_LINE}")
     decision = input("Would you like to upload your videos to an external platform? (y/n): ")
     externalPlatformConfig = ""
     savingPath = ""
@@ -142,7 +141,62 @@ def _buildYouTubeConfig():
     else:
         raise Exception("TODO - change to illegal state exception")
     
+    smartHandlingConfig = ""
+    print("Would you like to use AI to generate youtube video details?")
+    print("This would be for a youtube title, description, and tags (keywords) list.")
+    print("It is important to note that the details are generated based on a transcript of the clip.")
+    print("If there is no dialogue in the media you are clipping, I would advise skipping this step and using the default YT details above.")
+    
+    decision = input("Type (y) if you'd like to setup 'smart video handling': ")
+    if decision.lower() == "y":
+        smartHandlingConfig = _setupYtSmartHandlingConfig()
+    youtubeConfig["smartHandlingConfig"] = smartHandlingConfig
+
     return youtubeConfig
+
+def _setupYtSmartHandlingConfig() -> dict:
+    print("Currently, google's gemini is the only supported LLM.")
+    print("Please configure your google account to use gemini and retrieve your gemini API key.")
+
+    smartHandlingConfig = {}
+
+    apiKey = getAndValidateUserInput( # See if it's possible to do some validation here
+        inputText="Please enter your gemini API key: ",
+        errorText="",
+        conditional=lambda _: 1==1,
+    )
+    smartHandlingConfig["apiKey"] = apiKey
+
+    print("Below is the base prompt that will be feed to the chatbot: ")
+    print(f"{CLI.TITLE_LINE}\n{AI.BASE_YT_DETAIL_PROMPT}\n")
+
+    print("Please provide more context to the bot about the media you are clipping.")
+    print("This may include the genre of media, characters or hosts of the media, ask it to include certain 'hashtags', etc.")
+
+    print("Would you like to see an example of custom requests to the bot?")
+    decision = input("Enter (y) if so: ")
+    if decision.lower() == "y":
+        exampleCustomRequests = f"""
+            EXAMPLE: 
+
+            The transcript was generated from a segment from the FS1 sports talk show, First Things First. Please make
+            the tags list a mix of FTF related words and tags related to the contents of the transcript. Make sure to include
+            First Things First, Nick Wright, Chris Broussard, and or Kevin Wildes in the title and description.
+            Please ensure the title is no longer than 100 chars, the description is no longer than 5000 chars, and the tags list
+            is no longer than 500 chars.
+
+            Would you please also include these hashtags in the description? #FirstThingsFirst #FS1 #NickWright #ChrisBroussard #KevinWildes #NBA #NFL #SportsTalk #Debate
+        """
+        print(f"{CLI.TITLE_LINE}\n{exampleCustomRequests}\n")
+    
+    userRequests = getAndValidateUserInput(
+        inputText="Please enter your custom requests (hit enter if you'd like to skip): ",
+        errorText="",
+        conditional=lambda _: 1==1,
+    )
+    smartHandlingConfig["userRequests"] = userRequests
+ 
+    return smartHandlingConfig
 
 # Public functions
 

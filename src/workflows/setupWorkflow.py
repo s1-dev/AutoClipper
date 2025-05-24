@@ -6,12 +6,7 @@ from contentTargeting.seleniumSetup import launchSeleniumSetupWarning, getSeleni
 from recording.recordingConfigSetup import buildRecordingConfig
 from postClipHandling.videoSavingSetup import buildClipSavingConfig
 from utils.fileUtils import FileUtils
-
-# Maybe make workflow as an object and hold each subworkflow config as properties
-
-# Transition functions?
-
-TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
+from utils.constants import CLI
 
 class SetupWorkflow():
 
@@ -105,7 +100,7 @@ class SetupWorkflow():
         
     def setupConfirmation(self):
         clipConfigDict = self.mutableClipConfig.toDict()
-        print(f"{TITLE_LINE}Overview of clip configuration{TITLE_LINE}")
+        print(f"{CLI.TITLE_LINE}Overview of clip configuration{CLI.TITLE_LINE}")
         print(clipConfigDict)
         isToReconfig = input("Would you like to reconfigure? (y|n) ")
         isToReconfig = isToReconfig.lower() == "y"
@@ -128,7 +123,7 @@ class SetupWorkflow():
         if not FileUtils.doesDirExist(clipConfigDir):
             FileUtils.createDir(clipConfigDir)
 
-        clipConfigName = input("Enter clip config file name: (note .json will be appended)")
+        clipConfigName = input("Enter clip config file name: (note .json will be appended) ")
 
         if not clipConfigName.endswith(".json"):
             clipConfigName += ".json"
