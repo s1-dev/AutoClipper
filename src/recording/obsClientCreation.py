@@ -1,6 +1,5 @@
 from recording.obsClient import ObsClient
-
-TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
+from utils.constants import CLI
 
 obsServerConfig = {
     'host': '',
@@ -29,7 +28,7 @@ def configureObsServerConfig():
             errorsEncountered += 1
 
 def __getConfigFromUser():
-    print(f"{TITLE_LINE}OBS Web Server Config{TITLE_LINE}")
+    print(f"{CLI.TITLE_LINE}OBS Web Server Config{CLI.TITLE_LINE}")
 
     obsServerConfig["host"] = input("Hostname or IP: ")
     obsServerConfig["port"] = input("Port number: ")

@@ -2,6 +2,9 @@ from recording.obsClient import ObsClient
 from postClipHandling.oAuthSetup import isOAuthSetup
 from postClipHandling.youtubeUploader import uploadYoutubeVideo
 from utils.fileUtils import FileUtils
+from utils.dateUtils import getCurrentDateUserFacing
+from postClipHandling.transcriptGenerator import genTranscript
+from postClipHandling.ytDetailGenerator import generateYtDetails
 #from utils.asyncUtils import runCoroutine, creatTask, readOutputToThread, blockingTimer
 
 import logging
@@ -13,6 +16,10 @@ import cv2
 import time
 import sys
 from ultralytics import YOLO
+
+MAX_YT_TITLE_LEN = 100
+MAX_YT_DESC_LEN = 5000
+MAX_YT_TAG_LEN = 500
 
 logging.getLogger("ultralytics").disabled = True # TODO - allow user to dictate if they want logs or not
 
@@ -28,7 +35,7 @@ class RunWorkflow:
         self.obsClient = None
         self.targetedContentRef = None
         self.runningTasks = []
-        self.saveQueue = asyncio.Queue()
+        self.saveQueue = asyncio.Queue(maxsize=5)
         self.clipCounter = 0
         self.finished = False
 
@@ -84,6 +91,7 @@ class RunWorkflow:
             if statusUpdate == "INITIALIZED":
                 saveQueueTask = asyncio.create_task(self.saveQueueListener())
                 modelDetectionTask = asyncio.create_task(self.launchDetectionModel())
+
                 self.runningTasks.extend([saveQueueTask, modelDetectionTask])
             elif statusUpdate == "COMPLETED":
                 await self.killAndFinishWorkflow()       
@@ -223,7 +231,6 @@ class RunWorkflow:
             except Exception as e:
                 print(f"Failed to delete discarded clip: {e}")
     
-
     async def saveQueueListener(self):
         while True:
             (videoOutputPath, clipCounter) = await self.saveQueue.get()
@@ -232,28 +239,109 @@ class RunWorkflow:
         
     async def launchSave(self, outputPath, clipCounter):
         clipSavingConfig = self.clipConfig.getClipSavingConfig()
+        externalPlatformConfig = clipSavingConfig["externalPlatformConfig"]
+
+        if externalPlatformConfig["platform"] == "YOUTUBE":
+            await self._startYoutubeUpload(outputPath, clipCounter, externalPlatformConfig)
+        else:
+            raise("Unsupported external platform")
 
         keepVideosAfterUpload = bool(clipSavingConfig["keepVideosAfterUpload"])
         savingPath = str(clipSavingConfig["savingPath"])
-        externalPlatformConfig = clipSavingConfig["externalPlatformConfig"]
-
-        pathToOAuthConfig = str(externalPlatformConfig["pathToOAuthConfig"])
-
-        if not isOAuthSetup(pathToOAuthConfig):
-            raise Exception("OAUTH config is not setup")
-        else:
-            print("OAUTH is configured.")
-        
-        result = await asyncio.to_thread(uploadYoutubeVideo, outputPath, clipCounter, externalPlatformConfig)
 
         if not keepVideosAfterUpload:
             FileUtils.deleteFile(outputPath) # This returns a bool. Should we handle? 
 
         if savingPath != "":
             FileUtils.moveFileToDir(outputPath, savingPath) # Also returns a bool
-      
-        # have AI generate name for clip/video
-        # Save video or upload to platform
+
+    async def _startYoutubeUpload(
+        self, 
+        outputPath: str, 
+        clipCounter: int,
+        youtubeConfig: dict,
+    ):
+        pathToOAuthConfig = str(youtubeConfig["pathToOAuthConfig"])
+
+        defaultDetails = {
+            'title': f"{youtubeConfig["videoTitle"]} {clipCounter} | {getCurrentDateUserFacing()}",
+            'description': youtubeConfig["videoDesc"],
+            'keywords': youtubeConfig["videoTags"],
+            'categoryId' : youtubeConfig["categoryId"],
+            'privacyStatus': youtubeConfig["privacyStatus"],
+        }
+
+        if not isOAuthSetup(pathToOAuthConfig):
+            raise Exception("OAUTH config is not setup")
+        else:
+            print("OAUTH is configured.")
+
+        smartHandlingConfig = youtubeConfig["smartHandlingConfig"] 
+
+        if smartHandlingConfig != None and smartHandlingConfig != "":
+            await self._uploadYoutubeVideoWithSmartDetails(outputPath, pathToOAuthConfig, smartHandlingConfig, defaultDetails)
+        else: 
+            await self._uploadYoutubeVideo(outputPath, pathToOAuthConfig, defaultDetails)
+    
+    async def _uploadYoutubeVideoWithSmartDetails(
+        self, 
+        outputPath: str, 
+        pathToOAuthConfig: str,
+        smartHandlingConfig: dict, 
+        fallbackDetails: dict
+    ):
+        # 1. Attempt to gen transcript 
+        # 2. If error or none, fall back to default details 
+        # 3. else, attempt query for smart details 
+        # 4. If query fails, fall back to default details
+        # 5. else, upload youtube video with details. 
+        # Perhaps, we generate the dict in the workflow, and then pass it to uploader. This way there's no conditional logic in uploader
+
+        print("Attempting to generate transcript...")
+        videoTranscript = await genTranscript(outputPath)
+        if videoTranscript == None:
+             await self._uploadYoutubeVideo(outputPath, pathToOAuthConfig, fallbackDetails)
+             return
+
+        print("Attempting to generate details...")
+        smartDetails = await generateYtDetails(videoTranscript, smartHandlingConfig)
+        print(f"smart details: {smartDetails}")
+        if smartDetails == None:
+            await self._uploadYoutubeVideo(outputPath, pathToOAuthConfig, fallbackDetails)
+            return
+        
+        # We should abstract AI query validation out of the workflow
+        title = smartDetails["videoTitle"]
+        if title and len(title) > MAX_YT_TITLE_LEN:
+            title = title[:(MAX_YT_TITLE_LEN-3)] + "..." # LOL. We will want to just requery the AI until the len is less than 100
+        
+        description = smartDetails["videoDesc"]
+        if description and len(description) > MAX_YT_DESC_LEN:
+            description = description[:(MAX_YT_DESC_LEN-3)] + "..."
+
+        keywords = smartDetails["videoTags"]
+        if keywords and isinstance(keywords, list):
+            # If it's a list, take off white leading/trailing whitespace in entries and join to csv
+            keywords = ",".join([tag.strip() for tag in keywords if isinstance(tag, str)])
+            keywords = keywords[:MAX_YT_TAG_LEN]
+
+        videoDetails = {
+            'title': title or fallbackDetails["videoTitle"],
+            'description': description or fallbackDetails["videoDesc"],
+            'keywords': keywords or fallbackDetails["videoTags"],
+            'categoryId': fallbackDetails["categoryId"],
+            'privacyStatus': fallbackDetails["privacyStatus"],
+        }
+
+        await self._uploadYoutubeVideo(outputPath, pathToOAuthConfig, videoDetails)
+        
+    async def _uploadYoutubeVideo(self, outputPath: str, pathToOAuthConfig: str, videoDetails: dict):
+        print("upload yt vid hit")
+        try:
+            result = await asyncio.to_thread(uploadYoutubeVideo, outputPath, pathToOAuthConfig, videoDetails)
+            print("upload thread finished, result:", result)
+        except Exception as e:
+            print("Exception in upload thread:", e)
 
     async def abortWorkflow(self, message="Aborting due to critical error."):
         print(f"{message}", file=sys.stderr)
