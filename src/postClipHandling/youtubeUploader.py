@@ -10,7 +10,6 @@ from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import argparser, run_flow
 
-from utils.dateUtils import getCurrentDateUserFacing
 from utils.fileUtils import FileUtils
 
 # Explicitly tell the underlying HTTP transport library not to retry, since
@@ -111,20 +110,24 @@ def _resumableUpload(insertRequest):
 
 # Public functions 
 
-def uploadYoutubeVideo(filePath, clipCounter, youtubeConfig) -> bool:
+def uploadYoutubeVideo(
+    filePath: str,
+    pathToOAuthConfig: str, 
+    videoDetails: dict,
+) -> bool:
     if not FileUtils.isValidFile(filePath):
         print("Given file path to upload is not a valid file.")
         return False
 
-    youtubeService = _getAuthenticatedService(youtubeConfig["pathToOAuthConfig"])
+    youtubeService = _getAuthenticatedService(pathToOAuthConfig)
 
     videoArgs = {
         'file': filePath,
-        'title': f"{youtubeConfig["videoTitle"]} {clipCounter} | {getCurrentDateUserFacing()}",
-        'description': youtubeConfig["videoDesc"],
-        'keywords': youtubeConfig["videoTags"],
-        'categoryId' : youtubeConfig["categoryId"],
-        'privacyStatus': youtubeConfig["privacyStatus"],
+        'title': videoDetails["title"],
+        'description': videoDetails["description"],
+        'keywords': videoDetails["keywords"],
+        'categoryId' : videoDetails["categoryId"],
+        'privacyStatus': videoDetails["privacyStatus"],
     }
     
     try:

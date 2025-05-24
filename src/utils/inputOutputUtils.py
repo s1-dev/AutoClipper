@@ -1,4 +1,5 @@
 from typing import Callable, Optional
+from utils.constants import CLI
 
 def getAndValidateUserInput(
     inputText: str,
@@ -9,6 +10,7 @@ def getAndValidateUserInput(
     while not validInput:
         userInput = input(inputText)
         if conditional(userInput):
+            print(CLI.CONFIG_SEPERATOR)
             return userInput
         else:
             print(errorText)

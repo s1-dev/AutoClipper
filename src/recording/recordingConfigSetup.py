@@ -1,14 +1,12 @@
 from recording.recordingConfig import RecordingConfig
 from utils.inputOutputUtils import getAndValidateUserInput
 from utils.fileUtils import FileUtils
+from utils.constants import CLI
 
-TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
 VALID_MODEL_TYPES = ["YOLO"]
 
-# For now, we're just going to use YOLO models for clip starting and stopping
-
 def __retrieveRecordingConfig():
-    print(f"{TITLE_LINE}Recording config setup{TITLE_LINE}")
+    print(f"{CLI.TITLE_LINE}Recording config setup{CLI.TITLE_LINE}")
     print("Detecting when a clip should be started or stopped must be predicated on some sort of image detection ML model.")
     print("As of right now, only YOLO (You Only Look Once) models are supported. Furthermore, you will not to train your own model. Fortunuately, this is not incredibly difficult.")
     print("Please see the README.md/documentation for more information on YOLO and guides for how to train a model.")
