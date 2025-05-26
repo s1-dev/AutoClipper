@@ -5,6 +5,7 @@ from utils.fileUtils import FileUtils
 from utils.dateUtils import getCurrentDateUserFacing
 from postClipHandling.transcriptGenerator import genTranscript
 from postClipHandling.ytDetailGenerator import generateYtDetails
+from metrics.generalLogger import GeneralLogger
 #from utils.asyncUtils import runCoroutine, creatTask, readOutputToThread, blockingTimer
 
 import logging
@@ -30,6 +31,7 @@ class RunWorkflow:
     def __init__(
         self,
         clipConfig,
+        configName,
     ):
         self.clipConfig = clipConfig
         self.obsClient = None
@@ -37,6 +39,7 @@ class RunWorkflow:
         self.runningTasks = []
         self.saveQueue = asyncio.Queue(maxsize=5)
         self.clipCounter = 0
+        self.logger = GeneralLogger(configName=configName)
         self.finished = False
 
     def start(self):
@@ -46,6 +49,8 @@ class RunWorkflow:
         
     def startObs(self):
         print("Please ensure that OBS is started") # Eventually have it automatically launch
+        self.logger.log_sync("Attempting OBS websocket connection")
+
         obsServerConfig = self.clipConfig.getObsServerConnectionConfig()
         obsClient = ObsClient(
             host=obsServerConfig['serverAddress'],
@@ -65,10 +70,11 @@ class RunWorkflow:
 
         self.obsClient = obsClient
 
-        self.launchTargetContet()        
+        self.launchTargetContent()        
 
-    def launchTargetContet(self):
-        print("Launching targeted content...")
+    def launchTargetContent(self):
+        self.logger.log_sync("Launching targeted content")
+
         seleniumCommand = self.clipConfig.getSeleniumCommand()
         args = seleniumCommand['baseCommand'].split(' ')
         args += seleniumCommand['args']
@@ -79,21 +85,24 @@ class RunWorkflow:
             stdin=subprocess.PIPE,
             text=True,
         )
-
         self.targetedContentRef = process
 
         asyncio.run(self._handleTargetedContentOutput())
 
     async def _handleTargetedContentOutput(self):
+        await self.logger.log("Waiting for targeted content to initialize")
+
         process = self.targetedContentRef
         while process.poll() is None:
             statusUpdate = await self._readOutputToThread(process.stdout)
             if statusUpdate == "INITIALIZED":
+                await self.logger.log("Targeted content communicated that it is initialized")
                 saveQueueTask = asyncio.create_task(self.saveQueueListener())
                 modelDetectionTask = asyncio.create_task(self.launchDetectionModel())
 
                 self.runningTasks.extend([saveQueueTask, modelDetectionTask])
             elif statusUpdate == "COMPLETED":
+                await self.logger.log("Targeted content communicated that it is complete")
                 await self.killAndFinishWorkflow()       
 
     async def _readOutputToThread(self, pipe):
@@ -105,9 +114,8 @@ class RunWorkflow:
             await asyncio.to_thread(self.targetedContentRef.stdin.flush)
     
     async def launchDetectionModel(self):
-        print("Launching image detection...")
+        await self.logger.log("Image detection launching")
 
-        # === Load config ===
         config = self.clipConfig.getRecordingConfig()
         startOnDetect = bool(config['startRecordingOnDetection'])
         indefiniteClips = bool(config['indefiniteClips'])
@@ -118,7 +126,6 @@ class RunWorkflow:
         toggleThreshold = config['toggleThreshold']
         model = YOLO(config['pathToModel'], verbose=verbose)
 
-        # === Setup state ===
         screen = mss.mss()
         monitor = screen.monitors[1]
         confidenceThreshold = 0.7
@@ -133,9 +140,8 @@ class RunWorkflow:
 
             await asyncio.sleep(1)
 
-            # === Stop if clip hit max length ===
             if isRecording and time.time() >= maxClipTime:
-                print("Stop recording since we hit the maximum clip length.")
+                await self.logger.log("Recording stopped because maximum clip length was hit")
                 await self._stopRecordingAndQueue()
                 isRecording = False
                 undetectedActionDone = False
@@ -143,11 +149,9 @@ class RunWorkflow:
                 detectedCount = undetectedCount = 0
                 continue
 
-            # === Run detection model ===
             frame = self._captureFrame(screen, monitor)
             detectionTriggered = self._detectImage(model, frame, confidenceThreshold)
 
-            # === Process detection result ===
             if detectionTriggered and startOnDetect:
                 if verbose:
                     print("Image detected")
@@ -171,11 +175,11 @@ class RunWorkflow:
                 undetectedCount += 1
 
                 if undetectedCount >= toggleThreshold and isRecording:
-                    print("Stop recording since we stopped detecting the image.")
+                    await self.logger.log(f"Stop recording since the image has not been detected for {undetectedCount} cycles")
                     
                     currentTime = time.time()
                     if currentTime < minClipTime:
-                        print(f"Attempted to stop recording before the minimum clip time, discarding clip.")
+                        await self.logger.log("Recording stopping before the minimum clip threshold is surpassed")
                         await self._stopRecordingWithoutSaving()
                     else:
                         await self._stopRecordingAndQueue()
@@ -184,7 +188,6 @@ class RunWorkflow:
                     undetectedActionDone = False
                     maxClipTime = -1
 
-            # === Trigger subprocess commands if needed ===
             if not undetectedActionDone and undetectedCount >= 30:
                 await self._sendMessageToSubprocess("REFRESH")
                 undetectedActionDone = True
@@ -208,11 +211,11 @@ class RunWorkflow:
         return False
 
     async def _startRecording(self):
-        print("Attempting to start recording...")
+        await self.logger.log("Attempting to start recording")
         return await self.obsClient.startRecordingAsync()
 
     async def _stopRecordingAndQueue(self):
-        print("Attempting to stop recording...")
+        await self.logger.log("Recording stopped")
         outputPath = await self.obsClient.stopRecordingAsync()
         if outputPath is None:
             await self.abortWorkflow()
@@ -224,12 +227,12 @@ class RunWorkflow:
         if outputPath is None:
             await self.abortWorkflow()
         else:
-            print(f"Recording stopped early and discarded: {outputPath}")
+            await self.logger.log(f"Recording stopped early and discarded: {outputPath}")
             try:
                 FileUtils.deleteFile(outputPath)
-                print("Early recording deleted.")
+                await self.logger.log(f"Clip discarded: {outputPath}")
             except Exception as e:
-                print(f"Failed to delete discarded clip: {e}")
+                await self.logger.log(f"Failed to delete discarded clip: {e}")
     
     async def saveQueueListener(self):
         while True:
@@ -238,13 +241,17 @@ class RunWorkflow:
             self.saveQueue.task_done()
         
     async def launchSave(self, outputPath, clipCounter):
+        await self.logger.log("Post clip saving/handling starting")
+
         clipSavingConfig = self.clipConfig.getClipSavingConfig()
         externalPlatformConfig = clipSavingConfig["externalPlatformConfig"]
 
         if externalPlatformConfig["platform"] == "YOUTUBE":
             await self._startYoutubeUpload(outputPath, clipCounter, externalPlatformConfig)
         else:
-            raise("Unsupported external platform")
+            errorMsg = "Unsupported external platform"
+            await self.logger.log(errorMsg)
+            raise(errorMsg)
 
         keepVideosAfterUpload = bool(clipSavingConfig["keepVideosAfterUpload"])
         savingPath = str(clipSavingConfig["savingPath"])
@@ -261,6 +268,7 @@ class RunWorkflow:
         clipCounter: int,
         youtubeConfig: dict,
     ):
+        await self.logger.log("Starting youtube uploading subworkflow")
         pathToOAuthConfig = str(youtubeConfig["pathToOAuthConfig"])
 
         defaultDetails = {
@@ -272,9 +280,11 @@ class RunWorkflow:
         }
 
         if not isOAuthSetup(pathToOAuthConfig):
-            raise Exception("OAUTH config is not setup")
+            errorMsg = "OAUTH config is not setup"
+            await self.logger.log(errorMsg)
+            raise Exception(errorMsg)
         else:
-            print("OAUTH is configured.")
+            await self.logger.log("OAUTH is configured.")
 
         smartHandlingConfig = youtubeConfig["smartHandlingConfig"] 
 
@@ -300,6 +310,7 @@ class RunWorkflow:
         print("Attempting to generate transcript...")
         videoTranscript = await genTranscript(outputPath)
         if videoTranscript == None:
+             await self.logger.log("Failed to generate video transcript, uploading with default details")
              await self._uploadYoutubeVideo(outputPath, pathToOAuthConfig, fallbackDetails)
              return
 
@@ -307,6 +318,7 @@ class RunWorkflow:
         smartDetails = await generateYtDetails(videoTranscript, smartHandlingConfig)
         print(f"smart details: {smartDetails}")
         if smartDetails == None:
+            await self.logger.log("Failed to smart details, uploading with default details")
             await self._uploadYoutubeVideo(outputPath, pathToOAuthConfig, fallbackDetails)
             return
         
@@ -336,14 +348,15 @@ class RunWorkflow:
         await self._uploadYoutubeVideo(outputPath, pathToOAuthConfig, videoDetails)
         
     async def _uploadYoutubeVideo(self, outputPath: str, pathToOAuthConfig: str, videoDetails: dict):
-        print("upload yt vid hit")
         try:
             result = await asyncio.to_thread(uploadYoutubeVideo, outputPath, pathToOAuthConfig, videoDetails)
-            print("upload thread finished, result:", result)
+            await self.logger.log(f"upload thread finished, result: {result}")
         except Exception as e:
-            print("Exception in upload thread:", e)
+            await self.logger.log(f"Exception in upload thread: {e}")
 
     async def abortWorkflow(self, message="Aborting due to critical error."):
+        await self.logger.log(f"Aborting workflow due to: {message}")
+        await self.logger.flush()
         print(f"{message}", file=sys.stderr)
 
         if self.targetedContentRef and self.targetedContentRef.poll() is None:
@@ -355,7 +368,7 @@ class RunWorkflow:
         sys.exit(1)
 
     async def killAndFinishWorkflow(self):
-        print("Stopping everything...")
+        await self.logger.log("Killing active threads and processes and finishing the workflow")
 
         if self.targetedContentRef and self.targetedContentRef.poll() is None:
             self.targetedContentRef.kill()
@@ -372,6 +385,9 @@ class RunWorkflow:
     async def _finishWorkflow(self):
         # TODO Generate post workflow report. Json or text file maybe? 
         # Output to user, but also save 
+        await self.logger.log("Workflow finished")
+        await self.logger.flush()
+
         self.finished = True
 
 # 1. launch obs

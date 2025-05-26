@@ -9,12 +9,17 @@ class WorkflowFactory:
 
     def createRunWorkflow(
             self, 
-            clipConfigFileName,
+            clipConfigFileName: str,
         ):
         clipConfig = ClipConfig()
         clipConfig.loadFromJson(clipConfigFileName)
 
+        configName = clipConfigFileName.strip()
+        if configName.endswith(".json"):
+            configName = configName[:-5]
+
         return RunWorkflow(
-            clipConfig = clipConfig
+            clipConfig=clipConfig,
+            configName=configName,
         )
     
