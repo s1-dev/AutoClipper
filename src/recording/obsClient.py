@@ -67,7 +67,6 @@ class ObsClient:
         for attempt in range(1, RECORDING_MAX_RETRIES + 1):
             try:
                 self.__client.start_record()
-                print("Recording started.")
                 return True
             except OBSSDKRequestError as e:
                 print(f"Attempt {attempt}: Failed to start recording - {e}")

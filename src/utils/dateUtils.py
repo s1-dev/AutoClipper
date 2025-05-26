@@ -11,3 +11,6 @@ def getCurrentEpoch() -> int:
 
 def getCurrentDateUserFacing() -> str:
     return datetime.now().strftime("%m/%d/%Y")
+
+def getStringFormatTime(format: str = "%Y-%m-%d %H:%M:%S") -> str:
+    return datetime.now().strftime(format)

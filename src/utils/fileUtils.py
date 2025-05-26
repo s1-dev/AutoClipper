@@ -9,9 +9,9 @@ class FileUtils(object):
         return os.path.exists(pathToDir)
     
     @staticmethod 
-    def createDir(dirToCreate):
-        os.makedirs(dirToCreate)
-
+    def createDir(dirToCreate, exist_ok=False):
+        os.makedirs(dirToCreate, exist_ok=exist_ok)
+ 
     @staticmethod
     def dictToJson(
         dictData, 
@@ -62,3 +62,7 @@ class FileUtils(object):
             print(f"An error occurred: {e}")
         finally:
             return False
+        
+    @staticmethod
+    def joinFileToPath(dirPath: str, entityName: str) -> str:
+        return os.path.join(dirPath, entityName)
