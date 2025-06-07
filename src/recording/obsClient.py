@@ -67,7 +67,6 @@ class ObsClient:
         for attempt in range(1, RECORDING_MAX_RETRIES + 1):
             try:
                 self.__client.start_record()
-                print("Recording started.")
                 return True
             except OBSSDKRequestError as e:
                 print(f"Attempt {attempt}: Failed to start recording - {e}")
@@ -121,10 +120,6 @@ class ObsClient:
         
     def isRecording(self) -> bool: 
         status = self.__client.get_record_status()
-        return status.output_active
-    
-    async def isRecordingAsync(self) -> bool: 
-        status = await self.__client.get_record_status()
         return status.output_active
     
     def getRecordStatus(self): # Probably shelve for isRecording, unless I need something else in the query

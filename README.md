@@ -38,3 +38,20 @@ I think we could wrap the OBS client requests with try catch and retry 'n' times
 2. Feed transcript to LLG like GPT and have prompt for title and description
   - We can also ask for tags and to make all of the generated text SEO optimized 
 3. Apply generates lines to video and upload
+
+
+### Potential architecture
+Client (Web UI or CLI)
+    ↓
+Backend (FastAPI / Node / Django)
+    ↓
+Workers (Docker)
+   - YOLO detection
+   - Whisper transcription
+   - FFmpeg clipping/resizing
+    ↓
+Storage (S3, GCS, or local + CDN)
+    ↓
+Uploader Modules (YT, IG, TikTok APIs)
+    ↓
+Logs / Post Workflow Summary
