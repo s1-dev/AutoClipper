@@ -1,12 +1,9 @@
-from postClipHandling.clipSavingConfig import ClipSavingConfig
+from postClipHandling.clipSavingConfig import ClipSavingConfig, ExternalPlatform
 from utils.fileUtils import FileUtils
 from utils.inputOutputUtils import getAndValidateUserInput
 from utils.constants import AI, CLI
 
-YOUTUBE = "YOUTUBE"
-UPLOAD_PLATFORMS = [YOUTUBE]
 VALID_PRIVACY_STATUSES = ("public", "private", "unlisted")
-PLATFORM_KEY = "platform"
 
 MAX_YT_TITLE_LEN = 100
 MAX_YT_DESC_LEN = 5000
@@ -34,23 +31,24 @@ def __retrieveSavingConfig():
     )
 
 def _buildExternalPlatformConfig() -> dict:
-    print("From the below list, input the name of the platform you'd like to upload to: ")
-    for index, platform in enumerate(UPLOAD_PLATFORMS):
-        print(f"{index+1}. {platform}")
-    validInput = False
-    platform = ""
+    print("From the below list, input the name of the platform you'd like to upload to:")
 
-    while not validInput:
-        selectedPlatform = input("Platform: ")
-        selectedPlatform = selectedPlatform.upper()
-        if selectedPlatform in UPLOAD_PLATFORMS:
-            platform = selectedPlatform
-            validInput = True
+    platform_map = {}
+    for index, platform in enumerate(ExternalPlatform):
+        print(f"{index + 1}. {platform.name}")
+        platform_map[platform.name] = platform
+
+    selected_platform = None
+    while selected_platform is None:
+        user_input = input("Platform: ").strip().upper()
+        if user_input in platform_map:
+            selected_platform = platform_map[user_input]
         else:
             print("Please input a valid platform from the above list.")
-    
-    if platform == YOUTUBE:
+
+    if selected_platform == ExternalPlatform.YOUTUBE:
         return _buildYouTubeConfig()
+
     return None
 
 def _retrieveSavingPath() -> str:
@@ -68,7 +66,7 @@ def _retrieveSavingPath() -> str:
 
 def _buildYouTubeConfig():
     youtubeConfig = {}
-    youtubeConfig[PLATFORM_KEY] = YOUTUBE
+    youtubeConfig["platform"] = ExternalPlatform.YOUTUBE.value
 
     oAuthConfig = getAndValidateUserInput(
         inputText="Input absolute path of your OAUTH Config json file: ",
