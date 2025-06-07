@@ -1,3 +1,4 @@
+from enum import Enum
 
 class ClipSavingConfig:
 
@@ -17,3 +18,14 @@ class ClipSavingConfig:
             'savingPath': str(self.savingPath),
             'keepVideosAfterUpload': bool(self.keepVideosAfterUpload),
         }
+    
+class ExternalPlatform(Enum):
+    NONE = "none"
+    YOUTUBE = "youtube"
+
+    @staticmethod
+    def fromValue(value: str):
+        try:
+            return ExternalPlatform(value)
+        except ValueError:
+            return None

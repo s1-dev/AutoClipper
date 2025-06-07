@@ -1,6 +1,7 @@
 import json
 import shutil
 import os
+import time
 
 class FileUtils(object):
 
@@ -47,6 +48,21 @@ class FileUtils(object):
             return True
         else:
             return False
+        
+    @staticmethod
+    def deleteFile(pathToFile: str, retries=5, delay=0.5):
+        for i in range(retries):
+            try:
+                if os.path.exists(pathToFile):
+                    os.remove(pathToFile)
+                    return True
+                else:
+                    return False
+            except PermissionError as e:
+                if i < retries - 1:
+                    time.sleep(delay)
+                else:
+                    raise e
         
     @staticmethod
     def moveFileToDir(srcPath: str, destPath: str) -> bool:

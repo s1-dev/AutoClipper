@@ -122,10 +122,6 @@ class ObsClient:
         status = self.__client.get_record_status()
         return status.output_active
     
-    async def isRecordingAsync(self) -> bool: 
-        status = await self.__client.get_record_status()
-        return status.output_active
-    
     def getRecordStatus(self): # Probably shelve for isRecording, unless I need something else in the query
         return self.__client.get_record_status()
         
