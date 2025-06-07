@@ -1,6 +1,7 @@
 import asyncio
 from utils.dateUtils import getStringFormatTime
 from utils.fileUtils import FileUtils
+from utils.constants import Metrics
 
 LOGS_PATH_LOCATION = "./logs"
 
@@ -9,14 +10,14 @@ class GeneralLogger:
         self, 
         configName: str, 
         outputLogs: bool = True,
-        flushBatchSize: int = 5,
+        flushBatchSize: int = 3,
     ):
         FileUtils.createDir(LOGS_PATH_LOCATION, exist_ok=True)
         timestamp = getStringFormatTime("%Y-%m-%d_%H-%M-%S")
         self.loggingDir = FileUtils.joinFileToPath(LOGS_PATH_LOCATION, f"logs_{configName}_{timestamp}")
         FileUtils.createDir(self.loggingDir)
 
-        self.logFile = FileUtils.joinFileToPath(self.loggingDir, "workflow_logs.txt")
+        self.logFile = FileUtils.joinFileToPath(self.loggingDir, Metrics.LOG_FILE_NAME)
         with open(self.logFile, "w") as f:
             f.write(f"[{timestamp}] Workflow logging started\n")
 
@@ -25,7 +26,7 @@ class GeneralLogger:
         self.logs = []
         self._lock = asyncio.Lock()  # Async-safe lock for concurrent access
 
-    def log_sync(self, messageToLog: str):
+    def logSync(self, messageToLog: str):
         timestamp = getStringFormatTime()
         fullLog = f"[{timestamp}] {messageToLog}"
         if self.outputLogs:
@@ -41,7 +42,7 @@ class GeneralLogger:
                 print(fullLog)
             self.logs.append(fullLog)
             if len(self.logs) >= self.flushBatchSize:
-                await self._flush_unlocked()  # 🔑 Don't lock again
+                await self._flush_unlocked()
 
     async def flush(self):
         async with self._lock:

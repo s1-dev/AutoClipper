@@ -101,7 +101,7 @@ def _resumableUpload(insertRequest):
         print(error)
         retryCount += 1
         if retryCount > MAX_RETRIES:
-            exit("Ran out of retry attempts...") # TODO end gracefully 
+            raise Exception("Ran out of upload retry attempts")
 
         maxSleepTime = 2 ** retryCount
         sleepSeconds = random.random() * maxSleepTime
@@ -130,9 +130,5 @@ def uploadYoutubeVideo(
         'privacyStatus': videoDetails["privacyStatus"],
     }
     
-    try:
-        _initializeUpload(youtubeService, videoArgs)
-        return True
-    except HttpError as e:
-        print(f"An HTTP error {e.resp.status} occurred:\n{e.content}")
-        return False
+    _initializeUpload(youtubeService, videoArgs)
+    return True

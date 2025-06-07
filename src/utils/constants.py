@@ -10,3 +10,7 @@ class AI:
 class CLI:
     TITLE_LINE = "~~~~~~~~~~~~~~~~~~~~~~~~"
     CONFIG_SEPERATOR = "------------------------"
+
+class Metrics:
+    LOG_FILE_NAME = "workflow_logs.txt"
+    CLIP_DATA_FILE_NAME = "clip_data.json"

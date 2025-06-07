@@ -12,7 +12,7 @@ import json
 import sys
 
 DRIVER_PATH = r"C:\code\chromedriver-win64\chromedriver-win64\chromedriver.exe"  
-DEFAULT_WAIT_TIME = 10
+DEFAULT_WAIT_TIME = 30
 
 class DriverManager:
     def __init__(self):
@@ -111,7 +111,7 @@ async def asyncMain():
     runningTasks = await startFs1SiteAndListeners(driverManager, hasAlreadyInit=False)
 
     try:
-        await asyncio.sleep(3 * 60 * 60)  # 3 hours
+        await asyncio.sleep(7560)  # 2.1 hours
     except asyncio.CancelledError:
         pass
 
