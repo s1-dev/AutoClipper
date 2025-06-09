@@ -70,13 +70,20 @@ def __retrieveRecordingConfig():
     print("Example input - '600' - note that 10 minutes = 600 seconds")
     maximumClipLength = getAndValidateUserInput(
         inputText="Enter a maximum clip length in seconds (enter '-1' if you'd like clips to be recording until the model stops them): ",
-        errorText="Input must be a non-number or an integer greater than 0.",
+        errorText="Input must be '-1' or an integer greater than 0.",
         conditional=lambda s: (s.strip().isdigit() and int(s) > 0) or (s.strip().isdigit() and int(s) == -1),
     )
     maximumClipLength = int(maximumClipLength)
 
-    # TODO advanced config for allowing the user to send specific stdin to selenium script when recording starts and stops
-    # Make sure that the toggle threshold is lower than the detected/undetected action threshold
+    recordingToggleActions = {}
+    print("Depending on your targeted content script, you may want to send commands to the script after recording is toggled on or off.")
+    print("For instance, you may want to refresh the site you are targeting after a commercial is hit or load a different video when recording stops.")
+    print("This may be rather advanced and you'd have to make sure your script can listen for commands and handle them accordingly.")
+    print("An example may be: I send the command 'REFRESH' when we stop recording.")
+    decision = input("Would you like to setup post recording toggle actions? (y/Y) ")
+    if decision.lower() == "y":
+        recordingToggleActions = _setupRecordingToggleActions()
+
     return RecordingConfig(
         modelType,
         pathToModel,
@@ -87,7 +94,64 @@ def __retrieveRecordingConfig():
         numberOfClips,
         minimumClipLength,
         maximumClipLength,
+        recordingToggleActions,
     )
+
+def _setupRecordingToggleActions() -> dict:
+    recordingToggleActionConfigs = {}
+
+    onStopRecordActionConfig = {}
+    decision = input("Would you like to setup an action after recording stops? (y/Y) ")
+    if decision.lower() == "y":
+        onStopRecordActionConfig = _setupRecordingStoppedAction()
+    recordingToggleActionConfigs["onStopRecordActionConfig"] = onStopRecordActionConfig
+
+    onStartRecordActionConfig = {}
+    decision = input("Would you like to setup an action after recording starts? (y/Y) ")
+    if decision.lower() == "y":
+        onStartRecordActionConfig = _setupRecordingStartedAction()
+    recordingToggleActionConfigs["onStartRecordActionConfig"] = onStartRecordActionConfig
+
+    return recordingToggleActionConfigs
+    
+ 
+def _setupRecordingStoppedAction() -> dict:
+    onStopRecordActionConfig = {}
+
+    action = getAndValidateUserInput(
+        inputText="Please input the message you'd like to send to your targeted content script when recording stops: ",
+        errorText="Message can not exceed 500 characters.",
+        conditional=lambda s: len(s) <= 500, 
+    )
+    onStopRecordActionConfig["action"] = action
+
+    actionDelayTime = getAndValidateUserInput(
+        inputText="Input the time, in seconds, that you'd like to wait until sending the action. For example, an input of '5' will result in the action being sent 5 seconds after recording has stopped. ",
+        errorText="Input must be a positive integer or '0' if you'd like no wait to send the action when recording stops.",
+        conditional=lambda s: s.strip().isdigit() and int(s) >= 0,
+    )
+    onStopRecordActionConfig["actionDelayTime"] = actionDelayTime
+
+    return onStopRecordActionConfig
+
+def _setupRecordingStartedAction() -> dict:
+    onStartRecordActionConfig = {}
+
+    action = getAndValidateUserInput(
+        inputText="Please input the message you'd like to send to your targeted content script when recording starts: ",
+        errorText="Message can not exceed 500 characters.",
+        conditional=lambda s: len(s) <= 500, 
+    )
+    onStartRecordActionConfig["action"] = action
+
+    actionDelayTime = getAndValidateUserInput(
+        inputText="Input the time, in seconds, that you'd like to wait until sending the action. For example, an input of '5' will result in the action being sent 5 seconds after recording has started. ",
+        errorText="Input must be a positive integer or '0' if you'd like no wait to send the action when recording starts.",
+        conditional=lambda s: s.strip().isdigit() and int(s) >= 0,
+    )
+    onStartRecordActionConfig["actionDelayTime"] = actionDelayTime
+
+    return onStartRecordActionConfig
 
 # Public functions
 

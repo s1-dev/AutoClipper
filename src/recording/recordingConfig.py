@@ -11,6 +11,7 @@ class RecordingConfig:
             numberOfClips,
             minimumClipLength,
             maximumClipLength,
+            recordingToggleActions
         ):
             self.modelType = modelType
             self.pathToModel = pathToModel
@@ -21,6 +22,7 @@ class RecordingConfig:
             self.numberOfClips = numberOfClips
             self.minimumClipLength = minimumClipLength
             self.maximumClipLength = maximumClipLength
+            self.recordingToggleActions = recordingToggleActions
 
     def toDict(self):
         recordingConfig = {
@@ -33,6 +35,7 @@ class RecordingConfig:
             'numberOfClips': self.numberOfClips,
             'minimumClipLength': self.minimumClipLength,
             'maximumClipLength': self.maximumClipLength,
+            'recordingToggleActions': self.recordingToggleActions,
         }
         
         return recordingConfig

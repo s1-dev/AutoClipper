@@ -2,7 +2,7 @@ from recording.obsClient import ObsClient
 from postClipHandling.oAuthSetup import isOAuthSetup
 from postClipHandling.youtubeUploader import uploadYoutubeVideo
 from utils.fileUtils import FileUtils
-from utils.dateUtils import getCurrentDateUserFacing
+from utils.dateUtils import getCurrentDateUserFacing, getCurrentEpoch
 from postClipHandling.transcriptGenerator import genTranscript
 from postClipHandling.ytDetailGenerator import generateYtDetails
 from metrics.generalLogger import GeneralLogger
@@ -16,7 +16,6 @@ import subprocess
 import mss
 import numpy as np
 import cv2
-import time
 import sys
 from ultralytics import YOLO
 
@@ -133,11 +132,18 @@ class RunWorkflow:
         toggleThreshold = config['toggleThreshold']
         model = YOLO(config['pathToModel'], verbose=verbose)
 
+        recordingToggleActionConfigs = config["recordingToggleActionConfigs"]
+        onStopRecordActionConfig = recordingToggleActionConfigs.get("onStopRecordActionConfig")
+        isOnStopRecordingActionEnabled = bool(onStopRecordActionConfig)
+
+        onStartRecordActionConfig = recordingToggleActionConfigs.get("onStartRecordActionConfig")
+        isOnStartRecordingActionEnabled = bool(onStartRecordActionConfig)
+
         screen = mss.mss()
         monitor = screen.monitors[1]
         confidenceThreshold = 0.7
         detectedCount = undetectedCount = 0
-        detectedActionDone = undetectedActionDone = False
+        recStartedActionDone = recStoppedActionDone = False
         isRecording = False
         minClipTime = maxClipTime = -1
 
@@ -147,14 +153,15 @@ class RunWorkflow:
 
             await asyncio.sleep(1)
 
-            if isRecording and time.time() >= maxClipTime:
+            if isRecording and getCurrentEpoch() >= maxClipTime:
                 await self.logger.log("Recording stopped because maximum clip length was hit")
                 await self._stopRecordingAndQueue()
                 await self.logger.log("Returned to detection loop after stopping recording")
                 isRecording = False
-                undetectedActionDone = False
+                recStoppedActionDone = False
                 minClipTime = maxClipTime = -1
                 detectedCount = undetectedCount = 0
+                recordingToggledTime = getCurrentEpoch()
                 continue
 
             frame = self._captureFrame(screen, monitor)
@@ -170,11 +177,12 @@ class RunWorkflow:
                     success = await self._startRecording()
                     if not success:
                         await self.abortWorkflow()
-                    now = time.time()
+                    now = getCurrentEpoch()
                     minClipTime = now + minLength
                     maxClipTime = now + maxLength
                     isRecording = True
-                    detectedActionDone = False
+                    recStartedActionDone = False
+                    recordingToggledTime = getCurrentEpoch()
 
             else:
                 if verbose:
@@ -185,26 +193,28 @@ class RunWorkflow:
                 if undetectedCount >= toggleThreshold and isRecording:
                     await self.logger.log(f"Stop recording since the image has not been detected for {undetectedCount} cycles")
                     
-                    currentTime = time.time()
+                    currentTime = getCurrentEpoch()
                     if currentTime < minClipTime:
                         await self._stopRecordingWithoutSaving()
-                        await self.logger.log("Returned to detection loop after stopping recording")
                     else:
                         await self._stopRecordingAndQueue()
-                        await self.logger.log("Returned to detection loop after stopping recording")
+
+                    await self.logger.log("Returned to detection loop after stopping recording")
                     
                     isRecording = False
-                    undetectedActionDone = False
+                    recordingToggledTime = getCurrentEpoch()
+                    recStoppedActionDone = False
                     maxClipTime = -1
+                    
+            if isOnStartRecordingActionEnabled:
+                if not recStartedActionDone and (recordingToggledTime + int(onStartRecordActionConfig["actionDelayTime"])) >= getCurrentEpoch():
+                    await self._sendMessageToSubprocess(onStartRecordActionConfig["action"])
+                    recStartedActionDone = True
 
-            if not undetectedActionDone and undetectedCount >= 30:
-                await self._sendMessageToSubprocess("REFRESH")
-                undetectedActionDone = True
-
-            # Uncomment if needed
-            # if not detectedActionDone and detectedCount >= 30:
-            #     await self._sendMessageToSubprocess("REFRESH")
-            #     detectedActionDone = True
+            if isOnStopRecordingActionEnabled:
+                if not recStoppedActionDone and (recordingToggledTime + int(onStopRecordActionConfig["actionDelayTime"])) >= getCurrentEpoch():
+                    await self._sendMessageToSubprocess(str(onStopRecordActionConfig["action"]))
+                    recStoppedActionDone = True
 
     def _captureFrame(self, screen, monitor):
         grab = screen.grab(monitor)
