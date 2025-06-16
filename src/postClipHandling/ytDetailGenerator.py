@@ -27,6 +27,9 @@ def _queryGeminiForDetails(transcript: str, userRequests: str, model: Generative
         print(f"Error decoding JSON response: {response.text}")
         print(f"Decoding error details: {e}")
         return None
+    except Exception as e:
+        print(f"An exception occurred while trying to generate smart details: {e}")
+        return None
 
 async def generateYtDetails(transcript: str, smartHandlingConfig: dict) -> dict:
     # Configure the Gemini API
