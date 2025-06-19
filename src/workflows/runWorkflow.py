@@ -132,7 +132,7 @@ class RunWorkflow:
         toggleThreshold = config['toggleThreshold']
         model = YOLO(config['pathToModel'], verbose=verbose)
 
-        recordingToggleActionConfigs = config["recordingToggleActionConfigs"]
+        recordingToggleActionConfigs = config["recordingToggleActions"]
         onStopRecordActionConfig = recordingToggleActionConfigs.get("onStopRecordActionConfig")
         isOnStopRecordingActionEnabled = bool(onStopRecordActionConfig)
 
@@ -143,7 +143,7 @@ class RunWorkflow:
         monitor = screen.monitors[1]
         confidenceThreshold = 0.7
         detectedCount = undetectedCount = 0
-        recStartedActionDone = recStoppedActionDone = False
+        recStartedActionDone = recStoppedActionDone = True
         isRecording = False
         minClipTime = maxClipTime = -1
 
@@ -207,12 +207,13 @@ class RunWorkflow:
                     maxClipTime = -1
                     
             if isOnStartRecordingActionEnabled:
-                if not recStartedActionDone and (recordingToggledTime + int(onStartRecordActionConfig["actionDelayTime"])) >= getCurrentEpoch():
+                if not recStartedActionDone and (recordingToggledTime + int(onStartRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch():
                     await self._sendMessageToSubprocess(onStartRecordActionConfig["action"])
                     recStartedActionDone = True
 
             if isOnStopRecordingActionEnabled:
-                if not recStoppedActionDone and (recordingToggledTime + int(onStopRecordActionConfig["actionDelayTime"])) >= getCurrentEpoch():
+                if not recStoppedActionDone and (recordingToggledTime + int(onStopRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch():
+                    print("Sending a thing!")
                     await self._sendMessageToSubprocess(str(onStopRecordActionConfig["action"]))
                     recStoppedActionDone = True
 
@@ -284,13 +285,10 @@ class RunWorkflow:
         else:
             errorMsg = "Unsupported external platform"
             await self.logger.log(errorMsg)
-            raise(errorMsg)
 
         keepVideosAfterUpload = bool(clipSavingConfig["keepVideosAfterUpload"])
-        savingPath = str(clipSavingConfig["savingPath"])
 
         wasDeleted = False
-        finalPath = outputPath
 
         if not keepVideosAfterUpload:
             try:
@@ -300,19 +298,11 @@ class RunWorkflow:
             except Exception as e:
                 await self.logger.log(f"Failed to delete clip {clipNumber}: {e}")
 
-        if savingPath != "" and not wasDeleted:
-            try:
-                FileUtils.moveFileToDir(outputPath, savingPath)
-                finalPath = savingPath
-                await self.logger.log(f"Clip {clipNumber} moved: {savingPath}")
-            except Exception as e:
-                await self.logger.log(f"Failed to move clip {clipNumber}: {e}")
-
         currClipData = self.workflowLog.getEntry(clipNumber)
         updatedClipData = ClipData(
             clipNumber=currClipData.clipNumber,
             localClipState=LocalClipState.SAVED if not wasDeleted else LocalClipState.DELETED,
-            savedPath=finalPath,
+            savedPath=outputPath if not wasDeleted else "",
             platform=externalPlatform,
             uploadStatus=UploadStatus.UPLOADED if wasUploaded else UploadStatus.FAILED,
         )
@@ -339,7 +329,7 @@ class RunWorkflow:
         if not isOAuthSetup(pathToOAuthConfig):
             errorMsg = f"OAUTH config is not setup for clip {clipNumber}"
             await self.logger.log(errorMsg)
-            raise Exception(errorMsg)
+            return False
         else:
             await self.logger.log(f"OAUTH is configured for clip {clipNumber}")
 

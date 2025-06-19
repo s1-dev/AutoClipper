@@ -1,6 +1,6 @@
 from exceptions.fatalError import FatalError
 from clipConfiguration.clipConfig import ClipConfig
-from recording.obsClientCreation import retrieveObsClient
+from recording.obsClientCreation import launchObsSetupWarning, retrieveObsClient
 from recording.obsClientSetup import setObsScene, setObsSource
 from contentTargeting.seleniumSetup import launchSeleniumSetupWarning, getSeleniumCommand
 from recording.recordingConfigSetup import buildRecordingConfig
@@ -21,7 +21,7 @@ class SetupWorkflow():
         return self.finished
 
     def createObsClient(self):
-        #launchObsSetupWarning()
+        launchObsSetupWarning()
 
         obsClient = retrieveObsClient()
         if obsClient == None:
