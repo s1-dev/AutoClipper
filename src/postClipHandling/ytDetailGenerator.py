@@ -15,10 +15,11 @@ def _queryGeminiForDetails(transcript: str, userRequests: str, model: Generative
         {transcript}
     """
 
-    response = model.generate_content([
-        {"role": "user", "parts": [prompt]}
-    ])
     try:
+        response = model.generate_content([
+            {"role": "user", "parts": [prompt]}
+        ])
+        print("naw this hit")
         cleaned_response = response.text.strip()
         if cleaned_response.startswith("```json") and cleaned_response.endswith("```"):
             cleaned_response = cleaned_response[7:-3].strip()
@@ -32,7 +33,6 @@ def _queryGeminiForDetails(transcript: str, userRequests: str, model: Generative
         return None
 
 async def generateYtDetails(transcript: str, smartHandlingConfig: dict) -> dict:
-    # Configure the Gemini API
     configure(api_key=smartHandlingConfig["geminiApiKey"])
     model = GenerativeModel('gemini-1.5-flash')
 
@@ -42,4 +42,23 @@ async def generateYtDetails(transcript: str, smartHandlingConfig: dict) -> dict:
         smartHandlingConfig["userRequests"],
         model
     )
- 
+
+# if __name__ == "__main__":
+
+#     async def main():
+#         dummy_transcript = "This is a sample transcript of a YouTube video. It discusses various interesting topics."
+#         smart_config = {
+#             "geminiApiKey": "AIzaSyBmCh6Rfcg_PbnssCwK1VXWjiZh1wk1YLc",  
+#             "userRequests": "Extract the key takeaways and topics discussed in the video in JSON format."
+#         }
+
+#         if not smart_config["geminiApiKey"]:
+#             print("Missing Gemini API key. Please set GEMINI_API_KEY environment variable.")
+#             return
+
+#         print("Starting Gemini detail generation test...\n")
+#         result = await generateYtDetails(dummy_transcript, smart_config)
+#         print("\nGenerated details:\n", json.dumps(result, indent=2) if result else "No result returned.")
+
+#     asyncio.run(main())
+

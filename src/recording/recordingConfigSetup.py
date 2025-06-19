@@ -71,7 +71,7 @@ def __retrieveRecordingConfig():
     maximumClipLength = getAndValidateUserInput(
         inputText="Enter a maximum clip length in seconds (enter '-1' if you'd like clips to be recording until the model stops them): ",
         errorText="Input must be '-1' or an integer greater than 0.",
-        conditional=lambda s: (s.strip().isdigit() and int(s) > 0) or (s.strip().isdigit() and int(s) == -1),
+        conditional=lambda s: (s.strip() == "-1") or (s.strip().isdigit() and int(s) > 0),
     )
     maximumClipLength = int(maximumClipLength)
 
@@ -130,7 +130,7 @@ def _setupRecordingStoppedAction() -> dict:
         errorText="Input must be a positive integer or '0' if you'd like no wait to send the action when recording stops.",
         conditional=lambda s: s.strip().isdigit() and int(s) >= 0,
     )
-    onStopRecordActionConfig["actionDelayTime"] = actionDelayTime
+    onStopRecordActionConfig["actionDelayTime"] = int(actionDelayTime)
 
     return onStopRecordActionConfig
 
@@ -149,7 +149,7 @@ def _setupRecordingStartedAction() -> dict:
         errorText="Input must be a positive integer or '0' if you'd like no wait to send the action when recording starts.",
         conditional=lambda s: s.strip().isdigit() and int(s) >= 0,
     )
-    onStartRecordActionConfig["actionDelayTime"] = actionDelayTime
+    onStartRecordActionConfig["actionDelayTime"] = int(actionDelayTime)
 
     return onStartRecordActionConfig
 

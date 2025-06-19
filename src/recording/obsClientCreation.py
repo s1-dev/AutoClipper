@@ -16,7 +16,10 @@ def configureObsServerConfig():
                 print("You have failed to connect")
             else:
                 print(f"You have failed to connect {errorsEncountered} times")
-            response = input("Would you like to attempt again? (y|Y) ")
+            response = input("Would you like to attempt again (type 'y') or re-enter server details (type 'f')?")
+            if response.lower() == "f":
+                return configureObsServerConfig()
+
             if response.lower() != "y":
                 return None
         
@@ -34,10 +37,6 @@ def __getConfigFromUser():
     obsServerConfig["port"] = input("Port number: ")
     obsServerConfig["password"] = input("Password (nothing required if authentication is off): ")
 
-    __printConfig()
-
-def __printConfig():
-    print("OBS Server Config")
     print(obsServerConfig)
 
 def __connectToObs():
@@ -52,8 +51,8 @@ def __connectToObs():
 
 # Public functions
 
-#def launchObsSetupWarning():
-#    print("TODO")
+def launchObsSetupWarning():
+    print("Please note that OBS must be running during the setup process.")
 
 def retrieveObsClient():
     return configureObsServerConfig()

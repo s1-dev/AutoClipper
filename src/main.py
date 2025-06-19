@@ -11,7 +11,6 @@ from postClipHandling.oAuthSetup import verifyOAuthIsSetup, configureOAuth
 
 # Going to make this CLI tool to start... then make GUI
 
-
 CLIP_CONFIGS_PATH = "clipConfigs/"
 
 workflowFactory = WorkflowFactory()
@@ -59,6 +58,7 @@ def runClippingWorkflow(clipConfigFileName):
         clipConfigFileName = clipConfigFileName,
     )
     runWorkflow.start()
+    quit()
 
 def listClippingConfigs():
     onlyfiles = [f for f in listdir(CLIP_CONFIGS_PATH) if isfile(join(CLIP_CONFIGS_PATH, f))]
@@ -100,15 +100,10 @@ def main():
     print(f"{CLI.TITLE_LINE}Welcome to AutoClipper{CLI.TITLE_LINE}")
     print("This is the preliminary CLI version. GUI to come")
 
-    printOptions()
-    option = input("Option: ")
-    handleOption(option)
+    while True:
+        printOptions()
+        option = input("Option: ")
+        handleOption(option)
 
 if __name__ == "__main__":
     main()
-
-# Have stored configs: client settings, target video/website settings, AI settings, youtube settings 
-# Start fresh workflow (setup workflow?)
-# Start run workflow? As in take setup and run config
-# AI stuff 
-# Figure out how to locally store configs, securely
