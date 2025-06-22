@@ -19,7 +19,6 @@ def _queryGeminiForDetails(transcript: str, userRequests: str, model: Generative
         response = model.generate_content([
             {"role": "user", "parts": [prompt]}
         ])
-        print("naw this hit")
         cleaned_response = response.text.strip()
         if cleaned_response.startswith("```json") and cleaned_response.endswith("```"):
             cleaned_response = cleaned_response[7:-3].strip()

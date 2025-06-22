@@ -110,6 +110,7 @@ class RunWorkflow:
             elif statusUpdate == "COMPLETED":
                 await self.logger.log("Targeted content communicated that it is complete")
                 await self.killAndFinishWorkflow()       
+                return
 
     async def _readOutputToThread(self, pipe):
         return (await asyncio.to_thread(pipe.readline)).strip()          
@@ -143,6 +144,7 @@ class RunWorkflow:
         monitor = screen.monitors[1]
         confidenceThreshold = 0.7
         detectedCount = undetectedCount = 0
+        recordingToggledTime = -1
         recStartedActionDone = recStoppedActionDone = True
         isRecording = False
         minClipTime = maxClipTime = -1
@@ -150,6 +152,7 @@ class RunWorkflow:
         while True:
             if not indefiniteClips and self.clipCounter >= maxClips:
                 await self.killAndFinishWorkflow()
+                return
 
             await asyncio.sleep(1)
 
@@ -177,6 +180,7 @@ class RunWorkflow:
                     success = await self._startRecording()
                     if not success:
                         await self.abortWorkflow()
+                        return 
                     now = getCurrentEpoch()
                     minClipTime = now + minLength
                     maxClipTime = now + maxLength
@@ -207,13 +211,14 @@ class RunWorkflow:
                     maxClipTime = -1
                     
             if isOnStartRecordingActionEnabled:
-                if not recStartedActionDone and (recordingToggledTime + int(onStartRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch():
+                if isRecording and not recStartedActionDone and ((recordingToggledTime + int(onStartRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch()):
+                    await self.logger.log("Performing a post recording start action")
                     await self._sendMessageToSubprocess(onStartRecordActionConfig["action"])
                     recStartedActionDone = True
 
             if isOnStopRecordingActionEnabled:
-                if not recStoppedActionDone and (recordingToggledTime + int(onStopRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch():
-                    print("Sending a thing!")
+                if not isRecording and not recStoppedActionDone and ((recordingToggledTime + int(onStopRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch()):
+                    await self.logger.log("Performing a post recording stop action")
                     await self._sendMessageToSubprocess(str(onStopRecordActionConfig["action"]))
                     recStoppedActionDone = True
 
@@ -238,6 +243,7 @@ class RunWorkflow:
         outputPath = await self.obsClient.stopRecordingAsync()
         if outputPath is None:
             await self.abortWorkflow()
+            return
         self.clipCounter += 1
 
         await self.logger.log(f"Recording stopped for clip number {self.clipCounter}")
@@ -258,6 +264,7 @@ class RunWorkflow:
         outputPath = await self.obsClient.stopRecordingAsync()
         if outputPath is None:
             await self.abortWorkflow()
+            return
         else:
             await self.logger.log(f"Recording stopped early and discarded: {outputPath}")
             try:

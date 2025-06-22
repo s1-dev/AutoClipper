@@ -103,7 +103,7 @@ def main():
     while True:
         printOptions()
         option = input("Option: ")
-        handleOption(option)
+        handleOption(option.strip())
 
 if __name__ == "__main__":
     main()
