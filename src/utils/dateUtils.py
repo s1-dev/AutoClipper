@@ -6,8 +6,8 @@ def convertUtcToEpoch(timeStampString) -> int:
     epochTime = dt.replace(tzinfo=timezone.utc).timestamp()
     return int(epochTime)
 
-def getCurrentEpoch() -> int:
-    return int(time.time())
+def getCurrentEpoch() -> float:
+    return time.time()
 
 def getCurrentDateUserFacing() -> str:
     return datetime.now().strftime("%m/%d/%Y")

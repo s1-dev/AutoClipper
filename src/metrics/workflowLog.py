@@ -24,7 +24,7 @@ class ClipData:
         return {
             "clipNumber": self.clipNumber,
             "localClipState": self.localClipState.value if self.localClipState else None,
-            "savedPath": self.savedPath if self.savedPath else ""
+            "savedPath": self.savedPath if self.savedPath else "",
             "platform": self.platform.value if self.platform else None,
             "uploadStatus": self.uploadStatus.value if self.uploadStatus else None
         }
