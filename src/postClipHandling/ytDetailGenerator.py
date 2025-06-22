@@ -41,23 +41,3 @@ async def generateYtDetails(transcript: str, smartHandlingConfig: dict) -> dict:
         smartHandlingConfig["userRequests"],
         model
     )
-
-# if __name__ == "__main__":
-
-#     async def main():
-#         dummy_transcript = "This is a sample transcript of a YouTube video. It discusses various interesting topics."
-#         smart_config = {
-#             "geminiApiKey": "AIzaSyBmCh6Rfcg_PbnssCwK1VXWjiZh1wk1YLc",  
-#             "userRequests": "Extract the key takeaways and topics discussed in the video in JSON format."
-#         }
-
-#         if not smart_config["geminiApiKey"]:
-#             print("Missing Gemini API key. Please set GEMINI_API_KEY environment variable.")
-#             return
-
-#         print("Starting Gemini detail generation test...\n")
-#         result = await generateYtDetails(dummy_transcript, smart_config)
-#         print("\nGenerated details:\n", json.dumps(result, indent=2) if result else "No result returned.")
-
-#     asyncio.run(main())
-
