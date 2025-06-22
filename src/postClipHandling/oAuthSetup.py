@@ -75,11 +75,7 @@ def _isRefreshNeeded(oAuthConfig) -> bool:
     return currentTime >= expirationTime
 
 def _isRefreshPossible(oAuthConfig) -> bool:
-    expirationTime = convertUtcToEpoch(oAuthConfig['token_expiry'])
-    refreshTokenExpirationTime = expirationTime + int(oAuthConfig["token_response"]["refresh_token_expires_in"])
-    currentTime = getCurrentEpoch()
-
-    return currentTime < refreshTokenExpirationTime
+    return "refresh_token" in oAuthConfig["token_response"]
 
 def _attemptRefreshCredentials(oAuthCredentials, pathToConfig) -> bool:
     try:
@@ -111,7 +107,10 @@ def _runAuthenticationFlow(configOutputPath):
 # Public functions
 
 def isOAuthSetup(pathToOAuthConfig: str):
-    return _verifyConfig(pathToOAuthConfig)
+    try:
+        return _verifyConfig(pathToOAuthConfig)
+    except Exception as e:
+        return False
 
 def verifyOAuthIsSetup(pathToOAuthConfig: str):
     isConfigValid = _verifyConfig(pathToOAuthConfig)

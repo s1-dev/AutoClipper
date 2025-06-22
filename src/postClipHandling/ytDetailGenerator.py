@@ -15,10 +15,10 @@ def _queryGeminiForDetails(transcript: str, userRequests: str, model: Generative
         {transcript}
     """
 
-    response = model.generate_content([
-        {"role": "user", "parts": [prompt]}
-    ])
     try:
+        response = model.generate_content([
+            {"role": "user", "parts": [prompt]}
+        ])
         cleaned_response = response.text.strip()
         if cleaned_response.startswith("```json") and cleaned_response.endswith("```"):
             cleaned_response = cleaned_response[7:-3].strip()
@@ -27,9 +27,11 @@ def _queryGeminiForDetails(transcript: str, userRequests: str, model: Generative
         print(f"Error decoding JSON response: {response.text}")
         print(f"Decoding error details: {e}")
         return None
+    except Exception as e:
+        print(f"An exception occurred while trying to generate smart details: {e}")
+        return None
 
 async def generateYtDetails(transcript: str, smartHandlingConfig: dict) -> dict:
-    # Configure the Gemini API
     configure(api_key=smartHandlingConfig["geminiApiKey"])
     model = GenerativeModel('gemini-1.5-flash')
 
@@ -39,4 +41,3 @@ async def generateYtDetails(transcript: str, smartHandlingConfig: dict) -> dict:
         smartHandlingConfig["userRequests"],
         model
     )
- 

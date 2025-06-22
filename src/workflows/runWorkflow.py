@@ -2,7 +2,7 @@ from recording.obsClient import ObsClient
 from postClipHandling.oAuthSetup import isOAuthSetup
 from postClipHandling.youtubeUploader import uploadYoutubeVideo
 from utils.fileUtils import FileUtils
-from utils.dateUtils import getCurrentDateUserFacing
+from utils.dateUtils import getCurrentDateUserFacing, getCurrentEpoch
 from postClipHandling.transcriptGenerator import genTranscript
 from postClipHandling.ytDetailGenerator import generateYtDetails
 from metrics.generalLogger import GeneralLogger
@@ -16,7 +16,6 @@ import subprocess
 import mss
 import numpy as np
 import cv2
-import time
 import sys
 from ultralytics import YOLO
 
@@ -111,6 +110,7 @@ class RunWorkflow:
             elif statusUpdate == "COMPLETED":
                 await self.logger.log("Targeted content communicated that it is complete")
                 await self.killAndFinishWorkflow()       
+                return
 
     async def _readOutputToThread(self, pipe):
         return (await asyncio.to_thread(pipe.readline)).strip()          
@@ -133,28 +133,38 @@ class RunWorkflow:
         toggleThreshold = config['toggleThreshold']
         model = YOLO(config['pathToModel'], verbose=verbose)
 
+        recordingToggleActionConfigs = config["recordingToggleActions"]
+        onStopRecordActionConfig = recordingToggleActionConfigs.get("onStopRecordActionConfig")
+        isOnStopRecordingActionEnabled = bool(onStopRecordActionConfig)
+
+        onStartRecordActionConfig = recordingToggleActionConfigs.get("onStartRecordActionConfig")
+        isOnStartRecordingActionEnabled = bool(onStartRecordActionConfig)
+
         screen = mss.mss()
         monitor = screen.monitors[1]
         confidenceThreshold = 0.7
         detectedCount = undetectedCount = 0
-        detectedActionDone = undetectedActionDone = False
+        recordingToggledTime = -1
+        recStartedActionDone = recStoppedActionDone = True
         isRecording = False
         minClipTime = maxClipTime = -1
 
         while True:
             if not indefiniteClips and self.clipCounter >= maxClips:
                 await self.killAndFinishWorkflow()
+                return
 
             await asyncio.sleep(1)
 
-            if isRecording and time.time() >= maxClipTime:
+            if isRecording and getCurrentEpoch() >= maxClipTime:
                 await self.logger.log("Recording stopped because maximum clip length was hit")
                 await self._stopRecordingAndQueue()
                 await self.logger.log("Returned to detection loop after stopping recording")
                 isRecording = False
-                undetectedActionDone = False
+                recStoppedActionDone = False
                 minClipTime = maxClipTime = -1
                 detectedCount = undetectedCount = 0
+                recordingToggledTime = getCurrentEpoch()
                 continue
 
             frame = self._captureFrame(screen, monitor)
@@ -170,11 +180,13 @@ class RunWorkflow:
                     success = await self._startRecording()
                     if not success:
                         await self.abortWorkflow()
-                    now = time.time()
+                        return 
+                    now = getCurrentEpoch()
                     minClipTime = now + minLength
                     maxClipTime = now + maxLength
                     isRecording = True
-                    detectedActionDone = False
+                    recStartedActionDone = False
+                    recordingToggledTime = getCurrentEpoch()
 
             else:
                 if verbose:
@@ -185,26 +197,30 @@ class RunWorkflow:
                 if undetectedCount >= toggleThreshold and isRecording:
                     await self.logger.log(f"Stop recording since the image has not been detected for {undetectedCount} cycles")
                     
-                    currentTime = time.time()
+                    currentTime = getCurrentEpoch()
                     if currentTime < minClipTime:
                         await self._stopRecordingWithoutSaving()
-                        await self.logger.log("Returned to detection loop after stopping recording")
                     else:
                         await self._stopRecordingAndQueue()
-                        await self.logger.log("Returned to detection loop after stopping recording")
+
+                    await self.logger.log("Returned to detection loop after stopping recording")
                     
                     isRecording = False
-                    undetectedActionDone = False
+                    recordingToggledTime = getCurrentEpoch()
+                    recStoppedActionDone = False
                     maxClipTime = -1
+                    
+            if isOnStartRecordingActionEnabled:
+                if isRecording and not recStartedActionDone and ((recordingToggledTime + int(onStartRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch()):
+                    await self.logger.log("Performing a post recording start action")
+                    await self._sendMessageToSubprocess(onStartRecordActionConfig["action"])
+                    recStartedActionDone = True
 
-            if not undetectedActionDone and undetectedCount >= 30:
-                await self._sendMessageToSubprocess("REFRESH")
-                undetectedActionDone = True
-
-            # Uncomment if needed
-            # if not detectedActionDone and detectedCount >= 30:
-            #     await self._sendMessageToSubprocess("REFRESH")
-            #     detectedActionDone = True
+            if isOnStopRecordingActionEnabled:
+                if not isRecording and not recStoppedActionDone and ((recordingToggledTime + int(onStopRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch()):
+                    await self.logger.log("Performing a post recording stop action")
+                    await self._sendMessageToSubprocess(str(onStopRecordActionConfig["action"]))
+                    recStoppedActionDone = True
 
     def _captureFrame(self, screen, monitor):
         grab = screen.grab(monitor)
@@ -227,6 +243,7 @@ class RunWorkflow:
         outputPath = await self.obsClient.stopRecordingAsync()
         if outputPath is None:
             await self.abortWorkflow()
+            return
         self.clipCounter += 1
 
         await self.logger.log(f"Recording stopped for clip number {self.clipCounter}")
@@ -247,6 +264,7 @@ class RunWorkflow:
         outputPath = await self.obsClient.stopRecordingAsync()
         if outputPath is None:
             await self.abortWorkflow()
+            return
         else:
             await self.logger.log(f"Recording stopped early and discarded: {outputPath}")
             try:
@@ -274,13 +292,10 @@ class RunWorkflow:
         else:
             errorMsg = "Unsupported external platform"
             await self.logger.log(errorMsg)
-            raise(errorMsg)
 
         keepVideosAfterUpload = bool(clipSavingConfig["keepVideosAfterUpload"])
-        savingPath = str(clipSavingConfig["savingPath"])
 
         wasDeleted = False
-        finalPath = outputPath
 
         if not keepVideosAfterUpload:
             try:
@@ -290,19 +305,11 @@ class RunWorkflow:
             except Exception as e:
                 await self.logger.log(f"Failed to delete clip {clipNumber}: {e}")
 
-        if savingPath != "" and not wasDeleted:
-            try:
-                FileUtils.moveFileToDir(outputPath, savingPath)
-                finalPath = savingPath
-                await self.logger.log(f"Clip {clipNumber} moved: {savingPath}")
-            except Exception as e:
-                await self.logger.log(f"Failed to move clip {clipNumber}: {e}")
-
         currClipData = self.workflowLog.getEntry(clipNumber)
         updatedClipData = ClipData(
             clipNumber=currClipData.clipNumber,
             localClipState=LocalClipState.SAVED if not wasDeleted else LocalClipState.DELETED,
-            savedPath=finalPath,
+            savedPath=outputPath if not wasDeleted else "",
             platform=externalPlatform,
             uploadStatus=UploadStatus.UPLOADED if wasUploaded else UploadStatus.FAILED,
         )
@@ -329,7 +336,7 @@ class RunWorkflow:
         if not isOAuthSetup(pathToOAuthConfig):
             errorMsg = f"OAUTH config is not setup for clip {clipNumber}"
             await self.logger.log(errorMsg)
-            raise Exception(errorMsg)
+            return False
         else:
             await self.logger.log(f"OAUTH is configured for clip {clipNumber}")
 
