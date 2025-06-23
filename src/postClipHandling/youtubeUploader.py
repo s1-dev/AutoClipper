@@ -115,20 +115,22 @@ def uploadYoutubeVideo(
     pathToOAuthConfig: str, 
     videoDetails: dict,
 ) -> bool:
-    if not FileUtils.isValidFile(filePath):
-        print("Given file path to upload is not a valid file.")
-        return False
+    # if not FileUtils.isValidFile(filePath):
+    #     print("Given file path to upload is not a valid file.")
+    #     return False
 
-    youtubeService = _getAuthenticatedService(pathToOAuthConfig)
+    # youtubeService = _getAuthenticatedService(pathToOAuthConfig)
 
-    videoArgs = {
-        'file': filePath,
-        'title': videoDetails["title"],
-        'description': videoDetails["description"],
-        'keywords': videoDetails["keywords"],
-        'categoryId' : videoDetails["categoryId"],
-        'privacyStatus': videoDetails["privacyStatus"],
-    }
+    # videoArgs = {
+    #     'file': filePath,
+    #     'title': videoDetails["title"],
+    #     'description': videoDetails["description"],
+    #     'keywords': videoDetails["keywords"],
+    #     'categoryId' : videoDetails["categoryId"],
+    #     'privacyStatus': videoDetails["privacyStatus"],
+    # }
     
-    _initializeUpload(youtubeService, videoArgs)
+    # _initializeUpload(youtubeService, videoArgs)
+    # return True
+    time.sleep(5)
     return True
