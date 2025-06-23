@@ -115,18 +115,14 @@ async def asyncMain():
     except asyncio.CancelledError:
         pass
 
+    print("COMPLETED", flush=True)
+
     await cancelRunningTasks(runningTasks)
     driverManager.quitDriver()
-
-    print("COMPLETED", flush=True)
 
 async def cancelRunningTasks(runningTasks):
     for task in runningTasks:
         task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            print(f"Task {task.get_name()} cancelled.")
 
 def main():
     asyncio.run(asyncMain())
