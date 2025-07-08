@@ -21,3 +21,5 @@ src/workflowManagement/__pycache__
 clipConfigs
 
 logs
+
+seleniumScripts/__pycache__
