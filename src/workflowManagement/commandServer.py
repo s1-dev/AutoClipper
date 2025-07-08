@@ -1,5 +1,4 @@
 import asyncio
-
 from metrics.generalLogger import GeneralLogger
 
 class CommandServer:
@@ -9,10 +8,12 @@ class CommandServer:
         self.host = host
         self.port = port
         self.server = None
-        self.activeConnection = None
+        self.shutting_down = False
+        self.writerConnection = None 
+        self.active_connections = set() 
 
     async def start(self):
-        self.server = await asyncio.start_server(self._handle_client, self.host, self.port)
+        self.server = await asyncio.start_server(self._handle_new_client, self.host, self.port)
         if self.logger:
             await self.logger.log(f"Command server running on {self.host}:{self.port}")
         async with self.server:
@@ -22,45 +23,65 @@ class CommandServer:
         if self.logger:
             await self.logger.log("Shutting down CommandServer.")
 
+        self.shutting_down = True
+
         if self.server:
             self.server.close()
             await self.server.wait_closed()
 
-        if self.activeConnection:
+        for reader, writer, task in list(self.active_connections):
             try:
-                self.activeConnection.write(b"Server shutting down.\n")
-                await self.activeConnection.drain()
-            except Exception:
-                pass  # Ignore write errors
-            self.activeConnection.close()
-            try:
-                await self.activeConnection.wait_closed()
+                writer.close()
+                await writer.wait_closed()
             except Exception:
                 pass
 
-        self.server = None
-        self.activeConnection = None
+            if not task.done():
+                task.cancel()
+                try:
+                    await asyncio.wait_for(task, timeout=2.0)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    pass
+                except Exception as e:
+                    await self.logger.log(f"Error cancelling client task: {e}")
+
+        self.active_connections.clear()
+        self.writerConnection = None
 
         if self.logger:
             await self.logger.log("CommandServer has shut down.")
 
-    async def _handle_client(self, reader, writer):
+    async def _handle_new_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        task = asyncio.create_task(self._handle_client(reader, writer))
+        self.active_connections.add((reader, writer, task))
+
+        def cleanup(_):
+            self.active_connections.discard((reader, writer, task))
+
+        task.add_done_callback(cleanup)
+        await task  # Important to ensure shutdown can cancel this
+
+    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         addr = writer.get_extra_info('peername')
 
-        if self.activeConnection:
-            writer.write(b"Another client is already connected.\n")
+        if self.writerConnection:
+            writer.write(b"Another client is already connected with write privileges.\n")
             await writer.drain()
             writer.close()
             await writer.wait_closed()
             return
 
-        self.activeConnection = writer
+        self.writerConnection = writer
         if self.logger:
             await self.logger.log(f"Client connected: {addr}")
 
         try:
-            while True:
-                data = await reader.readline()
+            while not self.shutting_down:
+                try:
+                    data = await asyncio.wait_for(reader.readline(), timeout=1)
+                except asyncio.TimeoutError:
+                    continue
+
                 if not data:
                     break
                 command = data.decode().strip()
@@ -72,29 +93,27 @@ class CommandServer:
                 writer.write(b"ACK\n")
                 await writer.drain()
 
+        except asyncio.CancelledError:
+            await self.logger.log("Client handler task was cancelled.")
         except Exception as e:
-            await self.logger.log(f"Error: {e}")
+            await self.logger.log(f"Client handler error: {e}")
         finally:
-            self.activeConnection = None
-            writer.close()
-            await writer.wait_closed()
-            await self.logger.log(f"Client disconnected: {addr}")
-    
-    async def sendToClient(self, message: str):
-        if self.activeConnection:
+            self.writerConnection = None
             try:
-                self.activeConnection.write((message + '\n').encode())
-                await self.activeConnection.drain()
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+            await self.logger.log(f"Client disconnected: {addr}")
+
+    async def sendToClient(self, message: str):
+        if self.writerConnection:
+            try:
+                self.writerConnection.write((message + '\n').encode())
+                await self.writerConnection.drain()
             except Exception as e:
                 if self.logger:
                     await self.logger.log(f"[CommandServer] Failed to send to client: {e}")
         else:
             if self.logger:
                 await self.logger.log("[CommandServer] No active connection to send message to.")
-
-# async def main():
-#     server = CommandServer()
-#     await server.start()
-
-# if __name__ == "__main__":
-#     asyncio.run(main())

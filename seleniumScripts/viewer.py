@@ -38,7 +38,7 @@ class DriverManager:
         self.quitDriver()
         self.setupDriver()
 
-def launchFs1Site(driver, hasAlreadyInit):
+def launchFs1Site(driver):
     driver.get("https://www.foxsports.com/live/fs1") # Potential issue with this get call taking too long
     driver.refresh() # Necessary due to issue with fs1 site lol
 
@@ -61,27 +61,44 @@ def launchFs1Site(driver, hasAlreadyInit):
     token = driver.execute_script("return window.localStorage.getItem('_WIS_pvpAuth');")
     token = json.loads(token)
     expirationTime = token['expires']
-    if not hasAlreadyInit:
-        print("INITIALIZED", flush=True)
     return expirationTime 
 
 async def startFs1SiteAndListeners(driverManager, hasAlreadyInit):
-    initialExpirationTime = launchFs1Site(driverManager.driver, hasAlreadyInit)
+    initialExpirationTime = launchFs1Site(driverManager.driver)
 
     runningTasks = []
     stdinTask = asyncio.create_task(listenForCommands(driverManager, runningTasks), name="StdinListener")
     monitorExpirationTask = asyncio.create_task(monitorForRefresh(driverManager, initialExpirationTime, runningTasks), name="ExpirationMonitor")
     runningTasks.extend([stdinTask, monitorExpirationTask])
 
+    if not hasAlreadyInit:
+        print(json.dumps({"type": "INITIALIZED"}), flush=True)
+
     return runningTasks 
     
 async def listenForCommands(driverManager, runningTasks):
     while True:
-        userInput = await asyncio.to_thread(sys.stdin.readline)
-        userInput = userInput.strip()
-        if userInput == "REFRESH":
+        raw_input = await asyncio.to_thread(sys.stdin.readline)
+        raw_input = raw_input.strip()
+
+        if not raw_input:
+            continue
+
+        try:
+            message = json.loads(raw_input)
+            msg_type = message.get("type")
+            payload = message.get("payload", {})
+        except json.JSONDecodeError:
+            print(json.dumps({"type": "ERROR", "payload": {"reason": "Invalid JSON"}}), flush=True)
+            continue
+
+        if msg_type == "REFRESH":
             await relaunchFs1Site(driverManager, runningTasks)
+        elif msg_type == "SHUTDOWN":
+            await cancelRunningTasks(runningTasks)
             break
+        else:
+            print(json.dumps({"type": "ERROR", "payload": {"reason": f"Unknown command {msg_type}"}}), flush=True)
 
 async def monitorForRefresh(driverManager, expirationTime, runningTasks):
     expirationTime = expirationTime / 1000  # ms to s
@@ -115,7 +132,7 @@ async def asyncMain():
     except asyncio.CancelledError:
         pass
 
-    print("COMPLETED", flush=True)
+    print(json.dumps({"type": "COMPLETED"}), flush=True)
 
     await cancelRunningTasks(runningTasks)
     driverManager.quitDriver()
