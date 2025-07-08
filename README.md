@@ -13,6 +13,7 @@ Tool to automate clipping
 - Overhaul of configuration setup and listing 
 - Probably need unit tests lol
 - Create a UI version
+- Have a thread in the run workflow that is a server and can accept commands
 
 ### Immediate TODO: 
 - We need to handle OBS errors gracefully. Most notbably OBS errors when stopping/starting recording:

@@ -8,24 +8,27 @@ from postClipHandling.ytDetailGenerator import generateYtDetails
 from metrics.generalLogger import GeneralLogger
 from metrics.workflowLog import WorkflowLog, ClipData, LocalClipState, UploadStatus
 from postClipHandling.clipSavingConfig import ExternalPlatform
-#from utils.asyncUtils import runCoroutine, creatTask, readOutputToThread, blockingTimer
+from workflowManagement.commandServer import CommandServer
+from contentTargeting.targetedContentBridge import TargetedContentBridge
 
 import logging
 import asyncio
-import subprocess
 import mss
 import numpy as np
 import cv2
 import sys
+import psutil
 from ultralytics import YOLO
 
 MAX_YT_TITLE_LEN = 100
 MAX_YT_DESC_LEN = 5000
 MAX_YT_TAG_LEN = 500
 
+HANDLE_TARGETED_CONTENT_TASK_NAME = "handleTargetedContentTask"
 SAVE_QUEUE_TASK_NAME = "saveQueueTask"
 MODEL_DETECTION_TASK_NAME = "modelDetectionTask"
-
+COMMAND_SERVER_TASK_NAME = "commandServerTask"
+COMMAND_LISTENER_TASK_NAME = "commandListener"
 
 logging.getLogger("ultralytics").disabled = True # TODO - allow user to dictate if they want logs or not
 
@@ -41,18 +44,29 @@ class RunWorkflow:
         self.clipConfig = clipConfig
         self.obsClient = None
         self.targetedContentRef = None
+        self.contentBridge = None
         self.runningTasks = []
         self.saveQueue = asyncio.Queue(maxsize=20)
         self.clipCounter = 0
         self.logger = GeneralLogger(configName=configName)
         self.workflowLog = WorkflowLog(outputFolder=self.logger.getLoggingDir())
+        self.commandQueue = asyncio.Queue()
+        self.commandServer = CommandServer(commandQueue=self.commandQueue, logger=self.logger)
         self.finished = False
 
-    def start(self):
+    async def start(self):
         # TODO Validation workflow that validates clipping config contents before starting workflow    
         self.startObs()
+        await self.launchTargetContent()
+        await self.wait_for_completion()
         return self.finished
-        
+    
+    async def wait_for_completion(self):
+        try:
+            await asyncio.gather(*self.runningTasks)
+        finally:
+            self.finished = True
+            
     def startObs(self):
         print("Please ensure that OBS is started") # Eventually have it automatically launch
         self.logger.logSync("Attempting OBS websocket connection")
@@ -76,50 +90,58 @@ class RunWorkflow:
 
         self.obsClient = obsClient
 
-        self.launchTargetContent()        
-
-    def launchTargetContent(self):
+    async def launchTargetContent(self):
         self.logger.logSync("Launching targeted content")
 
         seleniumCommand = self.clipConfig.getSeleniumCommand()
         args = seleniumCommand['baseCommand'].split(' ')
         args += seleniumCommand['args']
-        process = subprocess.Popen(
-            args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=True,
+        self.targetedContentRef = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.PIPE,
         )
-        self.targetedContentRef = process
+        
+        self.contentBridge = TargetedContentBridge(process=self.targetedContentRef, logger=self.logger)
+        self.contentBridge.registerHandler("INITIALIZED", self._handleInitialized)
+        self.contentBridge.registerHandler("COMPLETED", self._handleCompleted)
 
-        asyncio.run(self._handleTargetedContentOutput())
+        self.handleTargetedContentTask = asyncio.create_task(self.contentBridge.startListeningForOutput(), name=HANDLE_TARGETED_CONTENT_TASK_NAME)
+        self.runningTasks.append(self.handleTargetedContentTask)
 
-    async def _handleTargetedContentOutput(self):
-        await self.logger.log("Waiting for targeted content to initialize")
+    async def _handleInitialized(self, payload):
+        """Handle INITIALIZED message from targeted content."""
+        await self.logger.log("Targeted content communicated that it is initialized")
+        saveQueueTask = asyncio.create_task(self.saveQueueListener(), name=SAVE_QUEUE_TASK_NAME)
+        modelDetectionTask = asyncio.create_task(self.launchDetectionModel(), name=MODEL_DETECTION_TASK_NAME)
+        commandServerTask = asyncio.create_task(self.commandServer.start(), name=COMMAND_SERVER_TASK_NAME)
+        commandListenerTask = asyncio.create_task(self.commandListener(), name=COMMAND_LISTENER_TASK_NAME)
 
-        process = self.targetedContentRef
-        while process.poll() is None:
-            statusUpdate = await self._readOutputToThread(process.stdout)
-            if statusUpdate == "INITIALIZED":
-                await self.logger.log("Targeted content communicated that it is initialized")
-                saveQueueTask = asyncio.create_task(self.saveQueueListener(), name=SAVE_QUEUE_TASK_NAME)
-                modelDetectionTask = asyncio.create_task(self.launchDetectionModel(), name=MODEL_DETECTION_TASK_NAME)
+        self.runningTasks.extend([saveQueueTask, modelDetectionTask, commandServerTask, commandListenerTask])
 
-                self.runningTasks.extend([saveQueueTask, modelDetectionTask])
-            elif statusUpdate == "COMPLETED":
-                await self.logger.log("Targeted content communicated that it is complete")
-                await self.killAndFinishWorkflow()       
-                return
+    async def _handleCompleted(self, payload):
+        """Handle COMPLETED message from targeted content."""
+        await self.logger.log("Targeted content communicated that it is complete")
+        await self.killAndFinishWorkflow()
 
-    async def _readOutputToThread(self, pipe):
-        return (await asyncio.to_thread(pipe.readline)).strip()          
+    async def commandListener(self):
+        while True:
+            command = await self.commandQueue.get()
+            await self._handleServerCommand(command)
 
-    async def _sendMessageToSubprocess(self, message: str):
-        if self.targetedContentRef and self.targetedContentRef.stdin:
-            self.targetedContentRef.stdin.write(message + '\n')
-            await asyncio.to_thread(self.targetedContentRef.stdin.flush)
-    
+    async def _handleServerCommand(self, command: str):
+        if command == "PING":
+            await self.commandServer.sendToClient("PONG")
+        elif command == "STOP":
+            await self.commandServer.sendToClient("Attempting to stop the workflow")
+            await self.killAndFinishWorkflow()
+        elif command == "KILL":
+            await self.commandServer.sendToClient("Attempting to kill the workflow")
+            await self.abortWorkflow("Forcefully terminated via KILL command.")
+        else:
+            await self.commandServer.sendToClient("Unknown command. Please refer to documentation for command examples")
+
     async def launchDetectionModel(self):
         await self.logger.log("Image detection launching")
 
@@ -213,13 +235,13 @@ class RunWorkflow:
             if isOnStartRecordingActionEnabled:
                 if isRecording and not recStartedActionDone and ((recordingToggledTime + int(onStartRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch()):
                     await self.logger.log("Performing a post recording start action")
-                    await self._sendMessageToSubprocess(onStartRecordActionConfig["action"])
+                    await self.contentBridge.send(message_type=str(onStopRecordActionConfig["action"]))
                     recStartedActionDone = True
 
             if isOnStopRecordingActionEnabled:
                 if not isRecording and not recStoppedActionDone and ((recordingToggledTime + int(onStopRecordActionConfig["actionDelayTime"])) <= getCurrentEpoch()):
                     await self.logger.log("Performing a post recording stop action")
-                    await self._sendMessageToSubprocess(str(onStopRecordActionConfig["action"]))
+                    await self.contentBridge.send(message_type=str(onStopRecordActionConfig["action"]))
                     recStoppedActionDone = True
 
     def _captureFrame(self, screen, monitor):
@@ -408,44 +430,37 @@ class RunWorkflow:
             await self.logger.log(f"Exception in upload thread for clip {clipNumber}: {e}")
             return False
 
-    async def abortWorkflow(self, message="Aborting due to critical error."):
-        await self.logger.log(f"Aborting workflow due to: {message}")
-        await self.logger.flush()
-        print(f"{message}", file=sys.stderr)
-
-        self.killTargetedContent()
-        await self.killTasks()
-
-        sys.exit(1)
+    async def abortWorkflow(self, message="a critical error occurred"):
+        try:
+            await self.logger.log(f"Aborting workflow due to: {message}")
+            print(f"{message}", file=sys.stderr)
+            await self.commandServer.stop()
+            await self.killTargetedContent()
+            await self.killTasks(tasksToKill=self.getRunningTasksNames())
+            await self.logger.flush()
+        finally:
+            sys.exit(1)
+    
+    def getRunningTasksNames(self):
+        return [task.get_name() for task in self.runningTasks]
 
     async def killAndFinishWorkflow(self):
         await self.logger.log("Killing active threads and processes and finishing the workflow")
-
-        self.killTargetedContent()
-        await self.killTasks(tasksToKeepAlive=[SAVE_QUEUE_TASK_NAME])
+        await self.killTasks(tasksToKill=[MODEL_DETECTION_TASK_NAME])
 
         if self.obsClient and self.obsClient.isRecording():
             await self.logger.log("OBS is still recording. Stopping and saving last clip.")
             await self._stopRecordingAndQueue()
 
+        await self.killTargetedContent()
+        await self.killTasks(tasksToKill=[HANDLE_TARGETED_CONTENT_TASK_NAME, COMMAND_LISTENER_TASK_NAME])
+
         await self.logger.log("Waiting for remaining clips in queue to finish saving and uploading.")
         await self.saveQueue.join()
-
+        
+        await self.commandServer.stop()
         await self.finishWorkflow()
-
-    def killTargetedContent(self):
-        if self.targetedContentRef and self.targetedContentRef.poll() is None:
-            self.targetedContentRef.kill()
-
-    async def killTasks(self, tasksToKeepAlive = []):
-        for task in self.runningTasks:
-            if task.get_name() in tasksToKeepAlive:
-                continue
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                print(f"Task {task.get_name()} cancelled.")
+        await self.killTasks(tasksToKill=[SAVE_QUEUE_TASK_NAME, COMMAND_SERVER_TASK_NAME]) # Kill remaining tasks
 
     async def finishWorkflow(self):
         # TODO Generate post workflow report. Json or text file maybe? 
@@ -454,4 +469,42 @@ class RunWorkflow:
         await self.logger.flush()
         self.workflowLog.outputToFile()
 
-        self.finished = True
+    async def killTargetedContent(self):      
+        try:
+            if self.targetedContentRef and self.targetedContentRef.returncode is None:
+                parent = psutil.Process(self.targetedContentRef.pid)
+                children = parent.children(recursive=True)
+                for child in children:
+                    try:
+                        child.kill()
+                    except psutil.NoSuchProcess:
+                        pass  # Process already dead
+                try:
+                    parent.kill()
+                except psutil.NoSuchProcess:
+                    pass  # Process already dead
+                await self.logger.log("Targeted content process and children killed.")
+            else:
+                await self.logger.log("Targeted content process already exited.")
+        except Exception as e:
+            await self.logger.log(f"Error killing targeted content tree: {e}")
+
+    async def killTasks(self, tasksToKill):
+        tasks_to_cancel = []
+        for task in self.runningTasks:
+            if task.get_name() in tasksToKill:
+                if not task.done():
+                    tasks_to_cancel.append(task)
+        
+        for task in tasks_to_cancel:
+            task.cancel()
+        
+        for task in tasks_to_cancel:
+            try:
+                await asyncio.wait_for(task, timeout=5.0)
+            except asyncio.CancelledError:
+                print(f"Task {task.get_name()} cancelled.")
+            except asyncio.TimeoutError:
+                print(f"Task {task.get_name()} did not cancel within timeout.")
+            except Exception as e:
+                print(f"Error awaiting cancelled task {task.get_name()}: {e}")

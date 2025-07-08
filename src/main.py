@@ -1,5 +1,7 @@
 from os import listdir
 from os.path import isfile, join
+import asyncio
+import sys
 
 from workflows.workflowFactory import WorkflowFactory
 from exceptions.fatalError import FatalError
@@ -57,8 +59,8 @@ def runClippingWorkflow(clipConfigFileName):
     runWorkflow = workflowFactory.createRunWorkflow(
         clipConfigFileName = clipConfigFileName,
     )
-    runWorkflow.start()
-    quit()
+    asyncio.run(runWorkflow.start())
+    sys.exit(0) # TODO Figure out the best way to gracefully end the program after the clipping workflow ends
 
 def listClippingConfigs():
     onlyfiles = [f for f in listdir(CLIP_CONFIGS_PATH) if isfile(join(CLIP_CONFIGS_PATH, f))]
