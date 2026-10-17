@@ -1,6 +1,8 @@
 # AutoClipper
 Tool to automate clipping 
 
+(Note: Sort of abandoned this project, so making public. Was a fun run) 
+
 ### Questions
 - Keep in Python or move to JVM (Kotlin or Java)? We're setting it up in OOP.... Java may be better
 - Going to have different approaches for clip detection 
